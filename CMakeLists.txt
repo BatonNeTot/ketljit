@@ -1,8 +1,8 @@
 ﻿cmake_minimum_required (VERSION 3.8)
 
-project ("ketl")
+project ("ketljit")
 
-set(PROJECT_TARGET "ketl")
+set(PROJECT_TARGET "ketljit")
 
 if(MSVC)
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4133 /we4244 /we4715 /we4716)
