@@ -599,13 +599,26 @@ static IRUndefinedDelegate* buildIRFromSyntaxNode(KETLIRBuilder* irBuilder, KETL
 		return wrapInDelegateValue(irBuilder, instruction->arguments[0]);
 	}
 	case KETL_SYNTAX_NODE_TYPE_RETURN: {
+		// TODO leave it till the end where we collect every return statement
 		KETLSyntaxNode* expressionNode = it->firstChild;
 		if (expressionNode) {
 			IRUndefinedDelegate* expression = buildIRFromSyntaxNode(irBuilder, irState, expressionNode);
 
+			CastingOption* expressionCasting;
+
+			ketlResetPool(&irBuilder->castingPool);
+			expressionCasting = getBestCastingOptionForDelegate(irBuilder, expression);
+
+			if (expressionCasting == NULL) {
+				// TODO error
+				__debugbreak();
+			}
+
+			convertValues(irBuilder, irState, expressionCasting);
+
 			KETLIRInstruction* instruction = createInstruction(irBuilder, irState);
 			instruction->code = KETL_INSTRUCTION_CODE_RETURN_8_BYTES; // TODO deside from type
-			instruction->arguments[0] = expression->caller->value; // TODO actual convertion from udelegate to correct type
+			instruction->arguments[0] = expressionCasting->value;
 		}
 		else {
 			KETLIRInstruction* instruction = createInstruction(irBuilder, irState);

@@ -15,16 +15,9 @@ extern "C" {
 // TODO rethink getOrCreate in int map
 
 int main(int argc, char** argv) {	
-	auto source = R"({
-	var test1 := 10;
-	i32 test2 := 15;
-	if (test1 != test2) {
-		var test3 := test2 - test1;
-		return test3;
-	} else {
-		return test1 * test2;
-	}
-})";
+	auto source = R"(
+	return 7;
+)";
 
 	KETLState ketlState;
 
@@ -43,6 +36,8 @@ int main(int argc, char** argv) {
 	int64_t result = 0;
 	uint8_t* stack = new uint8_t[function->stackSize + sizeof(uint64_t)];
 	ketlCallFunction(function, stack, &result);
+
+	std::cout << result << std::endl;
 
 	ketlDeinitState(&ketlState);
 
