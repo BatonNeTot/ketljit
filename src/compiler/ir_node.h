@@ -150,6 +150,7 @@ KETL_DEFINE(KETLIROperation) {
 
 KETL_DEFINE(KETLIRFunction) {
 	uint64_t operationsCount;
+	uint64_t stackUsage;
 	KETLIROperation* operations;
 	KETLIRArgument* arguments;
 };

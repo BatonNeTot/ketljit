@@ -17,7 +17,7 @@ extern "C" {
 
 int main(int argc, char** argv) {	
 	auto source = R"(
-	return 65536;
+	return 1 + 2;
 )";
 
 	KETLState ketlState;

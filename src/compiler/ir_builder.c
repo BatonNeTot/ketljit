@@ -36,6 +36,7 @@ KETL_DEFINE(CastingOption) {
 void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state) {
 	irBuilder->state = state;
 
+	ketlInitObjectPool(&irBuilder->scopedVariablesPool, sizeof(KETLIRScopedVariable), 16);
 	ketlInitObjectPool(&irBuilder->variablesPool, sizeof(KETLIRVariable), 16);
 	ketlInitObjectPool(&irBuilder->operationsPool, sizeof(KETLIROperation), 16);
 	ketlInitObjectPool(&irBuilder->udelegatePool, sizeof(IRUndefinedDelegate), 16);
@@ -46,10 +47,12 @@ void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state) {
 	ketlInitIntMap(&irBuilder->operationReferMap, sizeof(uint64_t), 16);
 	ketlInitIntMap(&irBuilder->argumentsMap, sizeof(uint64_t), 16);
 
-	//KETLObjectPool castingPool;
+	ketlInitObjectPool(&irBuilder->castingPool, sizeof(CastingOption), 16);
 }
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder) {
+	ketlDeinitObjectPool(&irBuilder->castingPool);
+
 	ketlDeinitIntMap(&irBuilder->argumentsMap);
 	ketlDeinitIntMap(&irBuilder->operationReferMap);
 
@@ -59,11 +62,12 @@ void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder) {
 	ketlDeinitObjectPool(&irBuilder->udelegatePool);
 	ketlDeinitObjectPool(&irBuilder->operationsPool);
 	ketlDeinitObjectPool(&irBuilder->variablesPool);
+	ketlDeinitObjectPool(&irBuilder->scopedVariablesPool);
 }
 
 
-static inline IRUndefinedDelegate* wrapInDelegateUValue(KETLIRFunctionWIP* wip, IRUndefinedValue* uvalue) {
-	IRUndefinedDelegate* udelegate = ketlGetFreeObjectFromPool(&wip->builder->udelegatePool);
+static inline IRUndefinedDelegate* wrapInDelegateUValue(KETLIRBuilder* irBuilder, IRUndefinedValue* uvalue) {
+	IRUndefinedDelegate* udelegate = ketlGetFreeObjectFromPool(&irBuilder->udelegatePool);
 	udelegate->caller = uvalue;
 	udelegate->arguments = NULL;
 	udelegate->next = NULL;
@@ -71,32 +75,30 @@ static inline IRUndefinedDelegate* wrapInDelegateUValue(KETLIRFunctionWIP* wip, 
 	return udelegate;
 }
 
-static inline IRUndefinedValue* wrapInUValueVariable(KETLIRFunctionWIP* wip, KETLIRVariable* variable) {
-	IRUndefinedValue* uvalue = ketlGetFreeObjectFromPool(&wip->builder->uvaluePool);
+static inline IRUndefinedValue* wrapInUValueVariable(KETLIRBuilder* irBuilder, KETLIRVariable* variable) {
+	IRUndefinedValue* uvalue = ketlGetFreeObjectFromPool(&irBuilder->uvaluePool);
 	uvalue->variable = variable;
 	uvalue->next = NULL;
 
 	return uvalue;
 }
 
-static inline IRUndefinedDelegate* wrapInDelegateValue(KETLIRFunctionWIP* wip, KETLIRVariable* variable) {
-	return wrapInDelegateUValue(wip, wrapInUValueVariable(wip, variable));
+static inline IRUndefinedDelegate* wrapInDelegateValue(KETLIRBuilder* irBuilder, KETLIRVariable* variable) {
+	return wrapInDelegateUValue(irBuilder, wrapInUValueVariable(irBuilder, variable));
 }
 
-static inline KETLIROperation* createOperation(KETLIRFunctionWIP* wip) {
-	return ketlGetFreeObjectFromPool(&wip->builder->operationsPool);
+static inline KETLIROperation* createOperation(KETLIRBuilder* irBuilder) {
+	return ketlGetFreeObjectFromPool(&irBuilder->operationsPool);
 }
 
-/*
-static inline KETLIRValue* createTempVariable(KETLIRFunctionWIP* wip) {
-	KETLIRValue* stackValue = ketlGetFreeObjectFromPool(&wip->builder->valuePool);
-	stackValue->name = NULL;
-	stackValue->argTraits.type = KETL_INSTRUCTION_ARGUMENT_TYPE_STACK;
-	stackValue->argument.stack = 0;
+static inline KETLIRScopedVariable* createTempVariable(KETLIRFunctionWIP* wip) {
+	KETLIRScopedVariable* stackValue = ketlGetFreeObjectFromPool(&wip->builder->scopedVariablesPool);
+	stackValue->variable.value.type = KETL_IR_ARGUMENT_TYPE_STACK;
+	stackValue->variable.value.stack = 0;
 	stackValue->firstChild = NULL;
 	stackValue->nextSibling = NULL;
 
-	KETLIRValue* tempVariables = wip->tempVariables;
+	KETLIRScopedVariable* tempVariables = wip->tempVariables;
 	if (tempVariables != NULL) {
 		stackValue->parent = tempVariables;
 		tempVariables->firstChild = stackValue;
@@ -110,6 +112,7 @@ static inline KETLIRValue* createTempVariable(KETLIRFunctionWIP* wip) {
 	}
 }
 
+/*
 static inline KETLIRValue* createLocalVariable(KETLIRFunctionWIP* wip) {
 	KETLIRValue* stackValue = ketlGetFreeObjectFromPool(&wip->builder->valuePool);
 	stackValue->argTraits.type = KETL_INSTRUCTION_ARGUMENT_TYPE_STACK;
@@ -161,6 +164,243 @@ static inline Literal parseLiteral(KETLIRFunctionWIP* wip, const char* value, si
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT64;
 	}
 	return literal;
+}
+
+static inline convertLiteralSize(KETLIRVariable* variable, KETLType* targetType) {
+	switch (variable->type->size) {
+	case 1:
+		switch (targetType->size) {
+		case 2: variable->value.uint16 = variable->value.uint8;
+			break;
+		case 4: variable->value.uint32 = variable->value.uint8;
+			break;
+		case 8: variable->value.uint64 = variable->value.uint8;
+			break;
+		}
+		break;
+	case 2:
+		switch (targetType->size) {
+			// TODO warning
+		case 1: variable->value.uint8 = (uint8_t)variable->value.uint16;
+			break;
+		case 4: variable->value.uint32 = variable->value.uint16;
+			break;
+		case 8: variable->value.uint64 = variable->value.uint16;
+			break;
+		}
+		break;
+	case 4:
+		switch (targetType->size) {
+			// TODO warning
+		case 1: variable->value.uint8 = (uint8_t)variable->value.uint32;
+			break;
+			// TODO warning
+		case 2: variable->value.uint16 = (uint16_t)variable->value.uint32;
+			break;
+		case 8: variable->value.uint64 = variable->value.uint32;
+			break;
+		}
+		break;
+	case 8:
+		switch (targetType->size) {
+			// TODO warning
+		case 1: variable->value.uint8 = (uint8_t)variable->value.uint64;
+			break;
+			// TODO warning
+		case 2: variable->value.uint16 = (uint16_t)variable->value.uint64;
+			break;
+			// TODO warning
+		case 4: variable->value.uint32 = (uint32_t)variable->value.uint64;
+			break;
+		}
+		break;
+	}
+	variable->type = targetType;
+}
+
+KETL_DEFINE(IRConvertionResult) {
+	KETLIRVariable* variable;
+	KETLIROperation* nextOperation;
+};
+
+static IRConvertionResult convertValues(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, CastingOption* castingOption) {
+	IRConvertionResult convertionResult;
+	convertionResult.variable = castingOption->variable;
+	convertionResult.nextOperation = rootOperation;
+
+	if (castingOption->variable->traits.type == KETL_TRAIT_TYPE_LITERAL) {
+		convertLiteralSize(castingOption->variable,
+			castingOption->operator ? castingOption->operator->outputType : castingOption->variable->type);
+	}
+	else {
+		if (castingOption == NULL || castingOption->operator == NULL) {
+			return convertionResult;
+		}
+
+		KETLIRVariable* result = &createTempVariable(wip)->variable;
+
+		KETLCastOperator casting = *castingOption->operator;
+		rootOperation->code = casting.code;
+		rootOperation->argumentCount = 2;
+		rootOperation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 2);
+		rootOperation->arguments[1] = &castingOption->variable->value;
+
+		rootOperation->arguments[0] = &result->value;
+		result->type = casting.outputType;
+		result->traits = casting.outputTraits;
+
+		castingOption->variable = result;
+		convertionResult.variable = result;
+		convertionResult.nextOperation = createOperation(wip->builder);
+	}
+
+	return convertionResult;
+}
+
+KETL_DEFINE(TypeCastingTargetList) {
+	CastingOption* begin;
+	CastingOption* last;
+};
+
+static TypeCastingTargetList possibleCastingForValue(KETLIRBuilder* irBuilder, KETLIRVariable* variable, bool implicit) {
+	TypeCastingTargetList targets;
+	targets.begin = targets.last = NULL;
+
+	bool numberLiteral = variable->traits.type == KETL_TRAIT_TYPE_LITERAL && variable->type->kind == KETL_TYPE_KIND_PRIMITIVE;
+#define MAX_SIZE_OF_NUMBER_LITERAL 8
+
+	KETLCastOperator** castOperators = ketlIntMapGet(&irBuilder->state->castOperators, (KETLIntMapKey)variable->type);
+	if (castOperators != NULL) {
+		KETLCastOperator* it = *castOperators;
+		for (; it; it = it->next) {
+			if (implicit && !it->implicit) {
+				continue;
+			}
+
+			// TODO check traits
+
+			CastingOption* newTarget = ketlGetFreeObjectFromPool(&irBuilder->castingPool);
+			newTarget->variable = variable;
+			newTarget->operator = it;
+
+			if (targets.last == NULL) {
+				targets.last = newTarget;
+			}
+			newTarget->next = targets.begin;
+			targets.begin = newTarget;
+
+			newTarget->score = !numberLiteral || it->outputType->size != MAX_SIZE_OF_NUMBER_LITERAL;
+		}
+	}
+
+	CastingOption* newTarget = ketlGetFreeObjectFromPool(&irBuilder->castingPool);
+	newTarget->variable = variable;
+	newTarget->operator = NULL;
+
+	if (targets.last == NULL) {
+		targets.last = newTarget;
+	}
+	newTarget->next = targets.begin;
+	targets.begin = newTarget;
+
+	newTarget->score = numberLiteral && variable->type->size != MAX_SIZE_OF_NUMBER_LITERAL;
+
+	return targets;
+}
+
+static CastingOption* possibleCastingForDelegate(KETLIRBuilder* irBuilder, IRUndefinedDelegate* udelegate) {
+	CastingOption* targets = NULL;
+
+	IRUndefinedValue* callerIt = udelegate->caller;
+	for (; callerIt; callerIt = callerIt->next) {
+		KETLIRVariable* callerValue = callerIt->variable;
+		KETLType* callerType = callerValue->type;
+
+
+		KETLIRVariable* outputValue = callerValue;
+
+		if (callerType->kind == KETL_TYPE_KIND_FUNCTION) {
+			__debugbreak();
+		}
+		else {
+			if (udelegate->arguments) {
+				// only functions can use arguments
+				continue;
+			}
+		}
+
+		TypeCastingTargetList castingTargets = possibleCastingForValue(irBuilder, outputValue, true);
+		if (castingTargets.begin != NULL) {
+			castingTargets.last->next = targets;
+			targets = castingTargets.begin;
+		}
+	}
+
+	return targets;
+}
+
+KETL_DEFINE(BinaryOperatorDeduction) {
+	KETLBinaryOperator* operator;
+	CastingOption* lhsCasting;
+	CastingOption* rhsCasting;
+};
+
+static BinaryOperatorDeduction deduceInstructionCode2(KETLIRBuilder* irBuilder, KETLSyntaxNodeType syntaxOperator, IRUndefinedDelegate* lhs, IRUndefinedDelegate* rhs) {
+	BinaryOperatorDeduction result;
+	result.operator = NULL;
+	result.lhsCasting = NULL;
+	result.rhsCasting = NULL;
+
+	KETLOperatorCode operatorCode = syntaxOperator - KETL_SYNTAX_NODE_TYPE_OPERATOR_OFFSET;
+	KETLState* state = irBuilder->state;
+
+	KETLBinaryOperator** pOperatorResult = ketlIntMapGet(&state->binaryOperators, operatorCode);
+	if (pOperatorResult == NULL) {
+		return result;
+	}
+	KETLBinaryOperator* operatorResult = *pOperatorResult;
+
+	uint64_t bestScore = UINT64_MAX;
+
+	uint64_t currentScore;
+
+	CastingOption* lhsCasting = possibleCastingForDelegate(irBuilder, lhs);
+	CastingOption* rhsCasting = possibleCastingForDelegate(irBuilder, rhs);
+
+	KETLBinaryOperator* it = operatorResult;
+	for (; it; it = it->next) {
+		currentScore = 0;
+		CastingOption* lhsIt = lhsCasting;
+		for (; lhsIt; lhsIt = lhsIt->next) {
+			KETLType* lhsType = lhsIt->operator ? lhsIt->operator->outputType : lhsIt->variable->type;
+			if (it->lhsType != lhsType) {
+				continue;
+			}
+
+			CastingOption* rhsIt = rhsCasting;
+			for (; rhsIt; rhsIt = rhsIt->next) {
+				KETLType* rhsType = rhsIt->operator ? rhsIt->operator->outputType : rhsIt->variable->type;
+				if (it->rhsType != rhsType) {
+					continue;
+				}
+
+				currentScore += lhsIt->score;
+				currentScore += rhsIt->score;
+
+				if (currentScore < bestScore) {
+					bestScore = currentScore;
+					result.operator = it;
+					result.lhsCasting = lhsIt;
+					result.rhsCasting = rhsIt;
+				}
+				else if (currentScore == bestScore) {
+					result.operator = NULL;
+				}
+			}
+		}
+	}
+
+	return result;
 }
 
 KETL_DEFINE(IRResult) {
@@ -229,7 +469,7 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 		variable->traits.type = KETL_TRAIT_TYPE_LITERAL;
 		variable->value = literal.value;
 
-		result.delegate = wrapInDelegateValue(wip, variable);
+		result.delegate = wrapInDelegateValue(wip->builder, variable);
 		result.nextOperation = rootOperation;
 
 		return result;
@@ -240,36 +480,42 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_DIV:
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_EQUAL:
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_UNEQUAL: {
-		/*
-		KETLIRValue* result = createTempVariable(irBuilder, wip);
+		KETLIRScopedVariable* resultVariable = createTempVariable(wip);
 
 		KETLSyntaxNode* lhsNode = it->firstChild;
-		IRUndefinedDelegate* lhs = buildIRFromSyntaxNode(irBuilder, wip, lhsNode);
+		IRResult lhs = buildIRFromSyntaxNode(wip, rootOperation, lhsNode);
 		KETLSyntaxNode* rhsNode = lhsNode->nextSibling;
-		IRUndefinedDelegate* rhs = buildIRFromSyntaxNode(irBuilder, wip, rhsNode);
+		IRResult rhs = buildIRFromSyntaxNode(wip, lhs.nextOperation, rhsNode);
 
 		ketlResetPool(&wip->builder->castingPool);
-		BinaryOperatorDeduction deductionStruct = deduceInstructionCode2(irBuilder, it->type, lhs, rhs);
+		BinaryOperatorDeduction deductionStruct = deduceInstructionCode2(wip->builder, it->type, lhs.delegate, rhs.delegate);
 		if (deductionStruct.operator == NULL) {
 			// TODO error
 			__debugbreak();
 		}
 
-		convertValues(irBuilder, wip, deductionStruct.lhsCasting);
-		convertValues(irBuilder, wip, deductionStruct.rhsCasting);
+		IRConvertionResult lhsConvertion = convertValues(wip, rhs.nextOperation, deductionStruct.lhsCasting);
+		IRConvertionResult rhsConvertion = convertValues(wip, lhsConvertion.nextOperation, deductionStruct.rhsCasting);
 
 		KETLBinaryOperator deduction = *deductionStruct.operator;
-		KETLIRInstruction* instruction = getOperation(irBuilder, wip);
-		instruction->code = deduction.code;
-		instruction->arguments[1] = deductionStruct.lhsCasting->value;
-		instruction->arguments[2] = deductionStruct.rhsCasting->value;
+		KETLIROperation* operation = rhsConvertion.nextOperation;
+		operation->code = deduction.code;
+		operation->argumentCount = 3;
+		operation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 3);
+		operation->arguments[1] = &lhsConvertion.variable->value;
+		operation->arguments[2] = &rhsConvertion.variable->value;
 
-		instruction->arguments[0] = result;
-		result->type = deduction.outputType;
-		result->traits = deduction.outputTraits;
+		operation->arguments[0] = &resultVariable->variable.value;
+		resultVariable->variable.type = deduction.outputType;
+		resultVariable->variable.traits = deduction.outputTraits;
 
-		return wrapInDelegateValue(irBuilder, result);
-		*/
+		result.delegate = wrapInDelegateValue(wip->builder, &resultVariable->variable);
+		result.nextOperation = createOperation(wip->builder);
+
+		operation->mainNext = result.nextOperation;
+		operation->extraNext = NULL;
+
+		return result;
 	}
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN: {
 		/*
@@ -289,6 +535,7 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 		result.nextInstructionRefer = claimOperation(wip);
 
 		operation->mainNext = result.nextInstructionRefer;
+		operation->extraNext = NULL;
 
 		return result;
 		*/
@@ -306,14 +553,18 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 			assignOperation->arguments[0]->type = KETL_IR_ARGUMENT_TYPE_RETURN;
 			assignOperation->arguments[1] = &expression.delegate->caller->variable->value; // TODO actual convertion from udelegate to correct type
 
-			rootOperation = createOperation(wip);
+			rootOperation = createOperation(wip->builder);
 
 			assignOperation->mainNext = rootOperation;
+			assignOperation->extraNext = NULL;
 		}
 
 		KETLIROperation* operation = rootOperation;
 		operation->code = KETL_IR_CODE_RETURN;
 		operation->argumentCount = 0;
+
+		operation->mainNext = NULL;
+		operation->extraNext = NULL;
 
 		return result;
 	}
@@ -323,6 +574,91 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 	return result;
 }
 
+#define UPDATE_NODE_TALE(firstVariable)\
+do {\
+	while (firstVariable->parent) {\
+	firstVariable = firstVariable->parent;\
+	}\
+	\
+	if (currentStack != NULL) {\
+		KETLIRScopedVariable* lastChild = currentStack->firstChild;\
+		if (lastChild != NULL) {\
+			while (lastChild->nextSibling) {\
+				lastChild = lastChild->nextSibling;\
+			}\
+			lastChild->nextSibling = firstVariable;\
+		}\
+		else {\
+			currentStack->firstChild = firstVariable;\
+		}\
+		firstVariable->parent = currentStack;\
+	}\
+	else {\
+		if (stackRoot != NULL) {\
+			KETLIRScopedVariable* lastChild = stackRoot;\
+			while (lastChild->nextSibling) {\
+				lastChild = lastChild->nextSibling;\
+			}\
+			lastChild->nextSibling = firstVariable;\
+		}\
+		else {\
+			stackRoot = firstVariable;\
+		}\
+		firstVariable->parent = NULL;\
+	}\
+} while(0)\
+
+static inline void restoreLocalSopeContext(KETLIRFunctionWIP* wip, KETLIRScopedVariable* currentStack, KETLIRScopedVariable* stackRoot) {
+	{
+		// set local variable
+		KETLIRScopedVariable* firstLocalVariable = wip->localVariables;
+		if (firstLocalVariable != NULL) {
+			KETLIRScopedVariable* lastLocalVariables = firstLocalVariable;
+			UPDATE_NODE_TALE(firstLocalVariable);
+			currentStack = firstLocalVariable;
+		}
+	}
+
+	{
+		// set temp variable
+		KETLIRScopedVariable* firstTempVariable = wip->tempVariables;
+		if (firstTempVariable) {
+			UPDATE_NODE_TALE(firstTempVariable);
+		}
+	}
+
+	wip->currentStack = currentStack;
+	wip->stackRoot = stackRoot;
+}
+/*
+static inline void restoreScopeContext(KETLIRFunctionWIP* wip, KETLIRScopedVariable* savedStack, uint64_t scopeIndex) {
+	irState->scopeIndex = scopeIndex;
+	irState->currentStack = savedStack;
+
+	KETLIntMapIterator iterator;
+	ketlInitIntMapIterator(&iterator, &irBuilder->variables);
+
+	while (ketlIntMapIteratorHasNext(&iterator)) {
+		const char* name;
+		IRUndefinedValue** pCurrent;
+		ketlIntMapIteratorGet(&iterator, (KETLIntMapKey*)&name, &pCurrent);
+		IRUndefinedValue* current = *pCurrent;
+		KETL_FOREVER{
+			if (current == NULL) {
+				ketlIntMapIteratorRemove(&iterator);
+				break;
+			}
+
+			if (current->scopeIndex <= scopeIndex) {
+				*pCurrent = current;
+				ketlIntMapIteratorNext(&iterator);
+				break;
+			}
+
+			current = current->next;
+		}
+	}
+}*/
 
 static void buildIRBlock(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, KETLSyntaxNode* syntaxNode) {
 	for (KETLSyntaxNode* it = syntaxNode; it; it = it->nextSibling) {
@@ -398,40 +734,72 @@ static void buildIRBlock(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation,
 			break;
 		}
 		default: {
-			//KETLIRValue* currentStack = wip->builder->currentStack;
-			//KETLIRValue* stackRoot = wip->builder->stackRoot;
+			KETLIRScopedVariable* currentStack = wip->currentStack;
+			KETLIRScopedVariable* stackRoot = wip->stackRoot;
 
-			//wip->builder->tempVariables = NULL;
-			//wip->builder->localVariables = NULL;
+			wip->tempVariables = NULL;
+			wip->localVariables = NULL;
 
 			buildIRFromSyntaxNode(wip, rootOperation, it);
 
-			//restoreLocalSopeContext(irBuilder, currentStack, stackRoot); 
+			restoreLocalSopeContext(wip, currentStack, stackRoot);
 		}
 		}
 	}
 }
+
 static void countOperationsAndArguments(KETLIRFunctionWIP* wip, KETLIntMap* operationReferMap, KETLIntMap* argumentsMap, KETLIROperation* rootOperation) {
-	KETL_FOREVER {
+	while(rootOperation != NULL) {
 		uint64_t* newRefer;
 		if (!ketlIntMapGetOrCreate(operationReferMap, (KETLIntMapKey)rootOperation, &newRefer)) {
 			return;
 		}
 		*newRefer = ketlIntMapGetSize(operationReferMap) - 1;
-		switch (rootOperation->code) {
-		case KETL_IR_CODE_ASSIGN_8_BYTES: {
-			uint64_t* newIndex;
-			if (ketlIntMapGetOrCreate(argumentsMap, (KETLIntMapKey)rootOperation->arguments[0], &newIndex)) {
+
+		uint64_t* newIndex;
+		for (uint64_t i = 0; i < rootOperation->argumentCount; ++i) {
+			if (ketlIntMapGetOrCreate(argumentsMap, (KETLIntMapKey)rootOperation->arguments[i], &newIndex)) {
 				*newIndex = ketlIntMapGetSize(argumentsMap) - 1;
 			}
-			if (ketlIntMapGetOrCreate(argumentsMap, (KETLIntMapKey)rootOperation->arguments[1], &newIndex)) {
-				*newIndex = ketlIntMapGetSize(argumentsMap) - 1;
-			}
-			rootOperation = rootOperation->mainNext;
-			continue;
 		}
-		case KETL_IR_CODE_RETURN:
-			return;
+		
+		rootOperation = rootOperation->mainNext;
+	}
+}
+
+static inline uint64_t bakeStackUsage(KETLIRFunctionWIP* wip) {
+	// TODO align
+	uint64_t currentStackOffset = 0;
+	uint64_t maxStackOffset = 0;
+
+	KETLIRScopedVariable* it = wip->stackRoot;
+	if (it == NULL) {
+		return maxStackOffset;
+	}
+
+	KETL_FOREVER{
+		it->variable.value.stack = currentStackOffset;
+
+		uint64_t size = getStackTypeSize(it->variable.traits, it->variable.type);
+		currentStackOffset += size;
+		if (maxStackOffset < currentStackOffset) {
+			maxStackOffset = currentStackOffset;
+		}
+
+		if (it->firstChild) {
+			it = it->firstChild;
+		}
+		else {
+			currentStackOffset -= size;
+			while (it->nextSibling == NULL) {
+				if (it->parent == NULL) {
+					return maxStackOffset;
+				}
+				it = it->parent;
+				size = getStackTypeSize(it->variable.traits, it->variable.type);
+				currentStackOffset -= size;
+			}
+			it = it->nextSibling;
 		}
 	}
 }
@@ -441,7 +809,23 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 
 	wip.builder = irBuilder;
 
-	KETLIROperation* rootOperation = createOperation(&wip);
+	ketlResetPool(&irBuilder->scopedVariablesPool);
+	ketlResetPool(&irBuilder->variablesPool);
+	ketlResetPool(&irBuilder->operationsPool);
+	ketlResetPool(&irBuilder->udelegatePool);
+	ketlResetPool(&irBuilder->uvaluePool);
+	ketlResetPool(&irBuilder->argumentPointersPool);
+	ketlResetPool(&irBuilder->argumentsPool);
+
+	ketlIntMapReset(&irBuilder->operationReferMap);
+	ketlIntMapReset(&irBuilder->argumentsMap);
+
+	wip.stackRoot = NULL;
+	wip.currentStack = NULL;
+
+	wip.scopeIndex = 0;
+
+	KETLIROperation* rootOperation = createOperation(irBuilder);
 	wip.rootOperation = rootOperation;
 	buildIRBlock(&wip, rootOperation, syntaxNodeRoot);
 
@@ -454,9 +838,13 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	uint64_t operationCount = ketlIntMapGetSize(&operationReferMap);
 	uint64_t argumentsCount = ketlIntMapGetSize(&argumentsMap);
 
+	uint64_t maxStackOffset = bakeStackUsage(&wip);
+
 	KETLIRFunctionDefinition functionDefinition;
 
-	functionDefinition.function = malloc(sizeof(KETLIRFunction));
+ 	functionDefinition.function = malloc(sizeof(KETLIRFunction));
+
+	functionDefinition.function->stackUsage = maxStackOffset;
 
 	functionDefinition.function->arguments = malloc(sizeof(KETLIRArgument) * argumentsCount);
 
