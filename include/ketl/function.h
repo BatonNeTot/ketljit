@@ -7,11 +7,8 @@
 
 #include <inttypes.h>
 
-KETL_DEFINE(KETLFunction) {
-	uint64_t stackSize;
-	uint64_t instructionsCount;
-};
+KETL_FORWARD(KETLFunction);
 
-void ketlCallFunction(KETLFunction* function, void* stackPtr, void* returnPtr);
+void ketlCallFunction(KETLFunction* function, void* returnPtr);
 
 #endif /*function_h*/

@@ -1,108 +1,66 @@
 ﻿//🍲ketl
 #include "compiler/ir_compiler.h"
 
+#include "executable_memory.h"
 #include "compiler/ir_node.h"
 #include "compiler/ir_builder.h"
 #include "ketl/function.h"
 #include "ketl/type.h"
 
-#include <stdlib.h>
+#include <string.h>
 
-static inline uint64_t bakeStackUsage(KETLIRState* irState) {
-	// TODO align
-	uint64_t currentStackOffset = 0;
-	uint64_t maxStackOffset = 0;
-
-	KETLIRValue* it = irState->stackRoot;
-	if (it == NULL) {
-		return maxStackOffset;
-	}
-
-	KETL_FOREVER {
-		it->argument.stack = currentStackOffset;
-
-		uint64_t size = getStackTypeSize(it->traits, it->type);
-		currentStackOffset += size;
-		if (maxStackOffset < currentStackOffset) {
-			maxStackOffset = currentStackOffset;
-		}
-
-		if (it->firstChild) {
-			it = it->firstChild;
-		}
-		else {
-			currentStackOffset -= size;
-			while (it->nextSibling == NULL) {
-				if (it->parent == NULL) {
-					return maxStackOffset;
-				}
-				it = it->parent;
-				size = getStackTypeSize(it->traits, it->type);
-				currentStackOffset -= size;
-			}
-			it = it->nextSibling;
-		}
-	}
+static uint64_t loadIntLiteralIntoRax(uint8_t* buffer, int64_t value) {
+    const uint8_t opcodesArray[] =
+    {
+        0x48, 0xc7, 0xc0, 0x00, 0x00, 0x00, 0x00,  // mov rax, 0                             
+    };
+    memcpy(buffer, opcodesArray, sizeof(opcodesArray));
+    *(int32_t*)(buffer + 3) = (int32_t)value;
+    return sizeof(opcodesArray);
 }
 
-static inline uint64_t calculateInstructionSizes(KETLIRState* irState) {
-	uint64_t instructionCount = 0;
 
-	KETLIRInstruction* it = irState->first;
-	while (it) {
-		it->instructionOffset = instructionCount;
-		instructionCount += KETL_CODE_SIZE(it->code);
-		it = it->next;
-	}
+KETLFunction* ketlCompileIR(KETLExecutableMemory* exeMemory, KETLIRFunction* irFunction) {
+    uint8_t opcodesBuffer[4096];
+    uint64_t length = 0;
+    KETLIROperation* itOperation = irFunction->operations;
+    for (uint64_t i = 0; i < irFunction->operationsCount; ++i) {
 
-	return instructionCount;
-}
+        switch (itOperation[i].code) {
+        case KETL_IR_CODE_ASSIGN_8_BYTES: {
+            switch (itOperation[i].arguments[1]->type) {
+            case KETL_IR_ARGUMENT_TYPE_INT8:
+                length += loadIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]->int8);
+                break;
+            case KETL_IR_ARGUMENT_TYPE_INT16:
+                length += loadIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]->int16);
+                break;
+            case KETL_IR_ARGUMENT_TYPE_INT32:
+                length += loadIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]->int32);
+                break;
+            case KETL_IR_ARGUMENT_TYPE_INT64:
+                length += loadIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]->int64);
+                break;
+            }
+            switch (itOperation[i].arguments[0]->type) {
+            case KETL_IR_ARGUMENT_TYPE_RETURN:
+                break;
+            }
+            break;
+        }
+        case KETL_IR_CODE_RETURN: {
+            const uint8_t opcodesArray[] =
+            {
+                0xc3                    // ret
+            };
+            memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+            length += sizeof(opcodesArray);
+            break;
+        }
+        }
+    }
 
-static inline void bakeJumps(KETLIRState* irState) {
-	KETLIRInstruction* it = irState->first;
-	while (it) {
-		if (it->code >= KETL_INSTRUCTION_CODE_JUMP && it->code <= KETL_INSTRUCTION_CODE_JUMP_IF_FALSE) {
-			KETLIRValue* value = it->arguments[0];
-			value->argument.uint64 = ((KETLIRInstruction*)value->argument.globalPtr)->instructionOffset - it->instructionOffset;
-		}
-		it = it->next;
-	}
-}
+    const uint8_t* opcodes = opcodesBuffer;
 
-KETLFunction* ketlCompileIR(KETLIRState* irState) {
-	uint64_t maxStackOffset = bakeStackUsage(irState);
-	uint64_t instructionCount = calculateInstructionSizes(irState);
-	bakeJumps(irState);
-
-	KETLFunction* function = malloc(sizeof(KETLFunction) + sizeof(KETLInstruction) * instructionCount);
-	function->stackSize = maxStackOffset;
-	function->instructionsCount = instructionCount;
-
-	KETLInstruction* instructions = (KETLInstruction*)(function + 1);
-
-	uint64_t instructionIndex = 0;
-	{
-		KETLIRInstruction* it = irState->first;
-		for (; it; it = it->next) {
-			KETLIRInstruction irInstruction = *it;
-			if (irInstruction.code == KETL_INSTRUCTION_CODE_NONE) {
-				continue;
-			}
-
-			uint64_t instructionSize = KETL_CODE_SIZE(irInstruction.code);
-
-			KETLInstruction instruction;
-			instruction.code = irInstruction.code;
-
-			for (uint64_t i = 1; i < instructionSize; ++i) {
-				instructions[instructionIndex + i].argument = irInstruction.arguments[i - 1]->argument;
-				instruction.argumentTraits[i + (KETL_INSTRUCTION_RESERVED_ARGUMENT_TRAITS_COUNT - 1)] = irInstruction.arguments[i - 1]->argTraits;
-			}
-
-			instructions[instructionIndex] = instruction;
-			instructionIndex += instructionSize;
-		}
-	}
-
-	return function;
+    return (KETLFunction*)ketlExecutableMemoryAllocate(exeMemory, &opcodes, sizeof(opcodesBuffer), length);
 }

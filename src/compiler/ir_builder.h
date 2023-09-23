@@ -2,54 +2,76 @@
 #ifndef compiler_ir_builder_h
 #define compiler_ir_builder_h
 
+#include "ir_node.h"
+
+#include "ketl/compiler/syntax_node.h"
+#include "ketl/type.h"
+
 #include "ketl/utils.h"
 
 #include "ketl/object_pool.h"
 #include "ketl/int_map.h"
 
-KETL_FORWARD(KETLIRState);
-KETL_FORWARD(KETLIRInstruction);
-KETL_FORWARD(KETLIRValue);
-KETL_FORWARD(KETLSyntaxNode);
-KETL_FORWARD(KETLAtomicStrings);
-KETL_FORWARD(KETLType);
 KETL_FORWARD(KETLState);
 
+KETL_DEFINE(KETLIRVariable) {
+	KETLType* type;
+	KETLVariableTraits traits;
+	KETLIRArgument value;
+};
+
+KETL_DEFINE(KETLIRScopedVariable) {
+	KETLIRVariable variable;
+	KETLIRScopedVariable* parent;
+	KETLIRScopedVariable* nextSibling;
+	KETLIRScopedVariable* firstChild;
+};
+
 KETL_DEFINE(KETLIRBuilder) {
-	KETLIntMap variables;
-	KETLObjectPool irInstructionPool;
+	KETLObjectPool scopedVariablesPool;
+	KETLObjectPool variablesPool;
+	KETLObjectPool operationsPool;
 	KETLObjectPool udelegatePool;
 	KETLObjectPool uvaluePool;
-	KETLObjectPool valuePool;
+
+	KETLObjectPool argumentPointersPool;
+	KETLObjectPool argumentsPool;
+
+	KETLIntMap operationReferMap;
+	KETLIntMap argumentsMap;
 
 	KETLObjectPool castingPool;
 
 	KETLState* state;
 };
 
-KETL_DEFINE(KETLIRState) {
-	KETLIRInstruction* first;
-	KETLIRInstruction* last;
+KETL_DEFINE(KETLIRFunctionWIP) {
+	KETLIRBuilder* builder;
+	KETLIROperation* rootOperation;
 
 	union {
 		struct {
-			KETLIRValue* stackRoot;
-			KETLIRValue* currentStack;
+			KETLIRScopedVariable* stackRoot;
+			KETLIRScopedVariable* currentStack;
 		};
 		struct {
-			KETLIRValue* tempVariables;
-			KETLIRValue* localVariables;
+			KETLIRScopedVariable* tempVariables;
+			KETLIRScopedVariable* localVariables;
 		};
 	};
 
 	uint64_t scopeIndex;
-	// TODO namespace
+};
+
+KETL_DEFINE(KETLIRFunctionDefinition) {
+	KETLIRFunction* function;
+	KETLType* type;
 };
 
 void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state);
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
 
-void ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLIRState* irState, KETLSyntaxNode* syntaxNodeRoot);
+KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot);
 
 #endif /*compiler_ir_builder_h*/
