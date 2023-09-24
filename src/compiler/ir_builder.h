@@ -28,6 +28,8 @@ KETL_DEFINE(KETLIRScopedVariable) {
 };
 
 KETL_DEFINE(KETLIRBuilder) {
+	KETLIntMap variablesMap;
+
 	KETLObjectPool scopedVariablesPool;
 	KETLObjectPool variablesPool;
 	KETLObjectPool operationsPool;

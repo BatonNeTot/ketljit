@@ -2,7 +2,6 @@
 #ifndef function_h
 #define function_h
 
-#include "instructions.h"
 #include "ketl/utils.h"
 
 #include <inttypes.h>

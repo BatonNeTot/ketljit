@@ -1,7 +1,6 @@
 ﻿//🍲ketl
 #include "ketl/ketl.h"
 
-#include "ketl/instructions.h"
 #include "ketl/compiler/syntax_node.h"
 #include "ketl/type.h"
 
@@ -31,7 +30,7 @@ static KETLType* createPrimitive(KETLState* state, const char* name, uint64_t si
 	return type;
 }
 
-static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode operatorCode, KETLInstructionCode instructionCode, KETLType* type) {
+static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode operatorCode, KETLIROperationCode operationCode, KETLType* type) {
 	KETLBinaryOperator** pOperator;
 	if (ketlIntMapGetOrCreate(&state->binaryOperators, operatorCode, &pOperator)) {
 		*pOperator = NULL;
@@ -44,7 +43,7 @@ static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode o
 	traits.isNullable = false;
 	traits.isConst = true;
 
-	operator.code = instructionCode;
+	operator.code = operationCode;
 
 	operator.lhsTraits = traits;
 	operator.rhsTraits = traits;
@@ -61,7 +60,7 @@ static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode o
 	*pOperator = newOperator;
 }
 
-static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCode operatorCode, KETLInstructionCode instructionCode, KETLType* type) {
+static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCode operatorCode, KETLIROperationCode operationCode, KETLType* type) {
 	KETLBinaryOperator** pOperator;
 	if (ketlIntMapGetOrCreate(&state->binaryOperators, operatorCode, &pOperator)) {
 		*pOperator = NULL;
@@ -74,7 +73,7 @@ static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCo
 	traits.isNullable = false;
 	traits.isConst = true;
 
-	operator.code = instructionCode;
+	operator.code = operationCode;
 
 	operator.lhsTraits = traits;
 	operator.rhsTraits = traits;
@@ -91,7 +90,7 @@ static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCo
 	*pOperator = newOperator;
 }
 
-static void registerCastOperator(KETLState* state, KETLType* sourceType, KETLType* targetType, KETLInstructionCode instructionCode, bool implicit) {
+static void registerCastOperator(KETLState* state, KETLType* sourceType, KETLType* targetType, KETLIROperationCode operationCode, bool implicit) {
 	KETLCastOperator** pOperator;
 	if (ketlIntMapGetOrCreate(&state->castOperators, (KETLIntMapKey)sourceType, &pOperator)) {
 		*pOperator = NULL;
@@ -104,7 +103,7 @@ static void registerCastOperator(KETLState* state, KETLType* sourceType, KETLTyp
 	traits.isNullable = false;
 	traits.isConst = true;
 
-	operator.code = instructionCode;
+	operator.code = operationCode;
 
 	operator.inputTraits = traits;
 	operator.outputTraits = traits;

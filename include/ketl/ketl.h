@@ -7,7 +7,6 @@
 #include "ketl/object_pool.h"
 #include "ketl/int_map.h"
 #include "type.h"
-#include "instructions.h"
 #include "ketl/operators.h"
 #include "ketl/utils.h"
 
@@ -20,7 +19,7 @@ KETL_DEFINE(KETLNamespace) {
 };
 
 KETL_DEFINE(KETLUnaryOperator) {
-	KETLInstructionCode code;
+	KETLIROperationCode code;
 	KETLVariableTraits inputTraits;
 	KETLVariableTraits outputTraits;
 	KETLType* inputType;
@@ -29,7 +28,7 @@ KETL_DEFINE(KETLUnaryOperator) {
 };
 
 KETL_DEFINE(KETLBinaryOperator) {
-	KETLInstructionCode code;
+	KETLIROperationCode code;
 	KETLVariableTraits lhsTraits;
 	KETLVariableTraits rhsTraits;
 	KETLVariableTraits outputTraits;
@@ -40,7 +39,7 @@ KETL_DEFINE(KETLBinaryOperator) {
 };
 
 KETL_DEFINE(KETLCastOperator) {
-	KETLInstructionCode code;
+	KETLIROperationCode code;
 	bool implicit;
 	KETLVariableTraits inputTraits;
 	KETLVariableTraits outputTraits;
