@@ -17,7 +17,12 @@ extern "C" {
 
 int main(int argc, char** argv) {	
 	auto source = R"(
-	var test := 256 + 5;
+	i64 test := 0;
+	{
+		i64 a := 5;
+		i64 b := 3;
+		test := a + b;
+	}
 	return test;
 )";
 

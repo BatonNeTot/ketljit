@@ -95,6 +95,16 @@ KETLFunction* ketlCompileIR(KETLExecutableMemory* exeMemory, KETLIRFunction* irF
         case KETL_IR_CODE_ADD_INT64: {
             length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
             switch (itOperation[i].arguments[2]->type) {
+            case KETL_IR_ARGUMENT_TYPE_STACK: {
+                const uint8_t opcodesArray[] =
+                {
+                     0x48, 0x03, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00,              // add     rax, QWORD PTR [rsp + 0] 
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+                *(int32_t*)(opcodesBuffer + length + 4) = (int32_t)itOperation[i].arguments[2]->stack;
+                length += sizeof(opcodesArray);
+                break;
+            }
             case KETL_IR_ARGUMENT_TYPE_INT8:
                 length += addIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[2]->int8);
                 break;

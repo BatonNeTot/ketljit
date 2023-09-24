@@ -446,7 +446,7 @@ KETL_DEFINE(IRResult) {
 };
 
 static  IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, KETLSyntaxNode* syntaxNodeRoot);
-static void buildIRBlock(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, KETLSyntaxNode* syntaxNode);
+static KETLIROperation* buildIRBlock(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, KETLSyntaxNode* syntaxNode);
 
 static IRConvertionResult createVariableDefinition(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, KETLSyntaxNode* idNode, KETLType* type) {
 	IRConvertionResult variableDefinitionResult;
@@ -550,7 +550,6 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 		return result;
 	}
 	case KETL_SYNTAX_NODE_TYPE_DEFINE_VAR_OF_TYPE: {
-		/*
 		KETLSyntaxNode* typeNode = it->firstChild;
 
 		KETLState* state = wip->builder->state;
@@ -559,14 +558,16 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 		KETLType* type = ketlIntMapGet(&state->globalNamespace.types, (KETLIntMapKey)typeName);
 
 		KETLSyntaxNode* idNode = typeNode->nextSibling;
-		KETLIRValue* variable = createVariableDefinition(irBuilder, wip, idNode, type);
+		IRConvertionResult variable = createVariableDefinition(wip, rootOperation, idNode, type);
 
-		if (variable == NULL) {
-			return NULL;
+		if (variable.variable == NULL) {
+			return result;
 		}
 
-		return wrapInDelegateValue(irBuilder, variable);
-		*/
+		result.delegate = wrapInDelegateValue(wip->builder, variable.variable);
+		result.nextOperation = variable.nextOperation;
+
+		return result;
 	}
 	case KETL_SYNTAX_NODE_TYPE_ID: {
 		const char* uniqName = ketlAtomicStringsGet(&wip->builder->state->strings, it->value, it->length);
@@ -642,27 +643,26 @@ static IRResult buildIRFromSyntaxNode(KETLIRFunctionWIP* wip, KETLIROperation* r
 		return result;
 	}
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN: {
-		/*
 		KETLSyntaxNode* lhsNode = it->firstChild;
-		IRResult lhs = buildIRFromSyntaxNode(wip, refer, lhsNode);
+		IRResult lhs = buildIRFromSyntaxNode(wip, rootOperation, lhsNode);
 		KETLSyntaxNode* rhsNode = lhsNode->nextSibling;
-		IRResult rhs = buildIRFromSyntaxNode(wip, lhs.nextInstructionRefer, rhsNode);
+		IRResult rhs = buildIRFromSyntaxNode(wip, lhs.nextOperation, rhsNode);
 
-		KETLIROperation* operation = getOperation(wip, rhs.nextInstructionRefer);
+		KETLIROperation* operation = rhs.nextOperation;
 
-		operation->code = KETL_INSTRUCTION_CODE_ASSIGN_8_BYTES; // TODO choose from type
+		operation->code = KETL_IR_CODE_ASSIGN_8_BYTES; // TODO choose from type
+		operation->argumentCount = 2;
+		operation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 2);
+		operation->arguments[0] = &lhs.delegate->caller->variable->value; // TODO actual convertion from udelegate to correct type
+		operation->arguments[1] = &rhs.delegate->caller->variable->value; // TODO actual convertion from udelegate to correct type
 
-		operation->arguments[0] = lhs.delegate->caller->value; // TODO actual convertion from udelegate to correct type
-		operation->arguments[1] = rhs.delegate->caller->value; // TODO actual convertion from udelegate to correct type
+		result.delegate = wrapInDelegateValue(wip->builder, lhs.delegate->caller->variable);
+		result.nextOperation = createOperation(wip->builder);
 
-		result.delegate = wrapInDelegateValue(wip, operation->arguments[0]);
-		result.nextInstructionRefer = claimOperation(wip);
-
-		operation->mainNext = result.nextInstructionRefer;
+		operation->mainNext = result.nextOperation;
 		operation->extraNext = NULL;
 
 		return result;
-		*/
 	}
 	case KETL_SYNTAX_NODE_TYPE_RETURN: {
 		KETLSyntaxNode* expressionNode = it->firstChild;
@@ -754,13 +754,13 @@ static inline void restoreLocalSopeContext(KETLIRFunctionWIP* wip, KETLIRScopedV
 	wip->currentStack = currentStack;
 	wip->stackRoot = stackRoot;
 }
-/*
+
 static inline void restoreScopeContext(KETLIRFunctionWIP* wip, KETLIRScopedVariable* savedStack, uint64_t scopeIndex) {
-	irState->scopeIndex = scopeIndex;
-	irState->currentStack = savedStack;
+	wip->scopeIndex = scopeIndex;
+	wip->currentStack = savedStack;
 
 	KETLIntMapIterator iterator;
-	ketlInitIntMapIterator(&iterator, &irBuilder->variables);
+	ketlInitIntMapIterator(&iterator, &wip->builder->variablesMap);
 
 	while (ketlIntMapIteratorHasNext(&iterator)) {
 		const char* name;
@@ -782,19 +782,19 @@ static inline void restoreScopeContext(KETLIRFunctionWIP* wip, KETLIRScopedVaria
 			current = current->next;
 		}
 	}
-}*/
+}
 
-static void buildIRBlock(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, KETLSyntaxNode* syntaxNode) {
+static KETLIROperation* buildIRBlock(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation, KETLSyntaxNode* syntaxNode) {
 	for (KETLSyntaxNode* it = syntaxNode; it; it = it->nextSibling) {
 		switch (it->type) {
 		case KETL_SYNTAX_NODE_TYPE_BLOCK: {
 
-			//KETLIRValue* savedStack = wip->builder->currentStack;
-			//uint64_t scopeIndex = wip->builder->scopeIndex++;
+			KETLIRScopedVariable* savedStack = wip->currentStack;
+			uint64_t scopeIndex = wip->scopeIndex++;
 
-			buildIRBlock(wip, rootOperation, it->firstChild);
+			rootOperation = buildIRBlock(wip, rootOperation, it->firstChild);
 
-			//restoreScopeContext(irBuilder, savedStack, scopeIndex);
+			restoreScopeContext(wip, savedStack, scopeIndex);
 			break;
 		}
 		case KETL_SYNTAX_NODE_TYPE_IF_ELSE: {
@@ -871,6 +871,8 @@ static void buildIRBlock(KETLIRFunctionWIP* wip, KETLIROperation* rootOperation,
 		}
 		}
 	}
+
+	return rootOperation;
 }
 
 static void countOperationsAndArguments(KETLIRFunctionWIP* wip, KETLIntMap* operationReferMap, KETLIntMap* argumentsMap, KETLIROperation* rootOperation) {
