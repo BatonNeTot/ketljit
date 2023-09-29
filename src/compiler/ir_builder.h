@@ -47,9 +47,14 @@ KETL_DEFINE(KETLIRBuilder) {
 	KETLState* state;
 };
 
+KETL_DEFINE(IROperationRange) {
+	KETLIROperation* root;
+	KETLIROperation* next;
+};
+
 KETL_DEFINE(KETLIRFunctionWIP) {
 	KETLIRBuilder* builder;
-	KETLIROperation* rootOperation;
+	IROperationRange operationRange;
 
 	union {
 		struct {

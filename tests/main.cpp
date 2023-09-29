@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
 		i64 b := 3;
 		test := a + b;
 	}
-	return test;
+	return 3 == 5;
 )";
 
 	KETLState ketlState;
