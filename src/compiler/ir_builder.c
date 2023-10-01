@@ -118,6 +118,15 @@ static inline KETLIROperation* createLastOperationFromRange(KETLIRBuilder* irBui
 	return operation;
 }
 
+static inline void initSideOperationRange(KETLIRBuilder* irBuilder, IROperationRange* baseRange, IROperationRange* sideRange) {
+	sideRange->root = createOperationImpl(irBuilder);
+	sideRange->next = baseRange->next;
+}
+
+static inline void deinitSideOperationRange(KETLIRBuilder* irBuilder, IROperationRange* sideRange) {
+	recycleOperationImpl(irBuilder, sideRange->next);
+}
+
 static inline void deinitInnerOperationRange(KETLIRBuilder* irBuilder, IROperationRange* baseRange, IROperationRange* innerRange) {
 	baseRange->root = innerRange->root;
 	recycleOperationImpl(irBuilder, innerRange->next);
@@ -819,24 +828,35 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 
 		KETLIROperation* ifJumpOperation = createOperationFromRange(wip->builder, &innerRange);
 		ifJumpOperation->code = KETL_IR_CODE_JUMP_IF_FALSE;
-		ifJumpOperation->argumentCount = 2;
-		ifJumpOperation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 2);
+		ifJumpOperation->argumentCount = 1;
+		ifJumpOperation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 1);
 		ifJumpOperation->arguments[0] = &expressionCasting->variable->value;
 
 		deinitInnerOperationRange(wip->builder, operationRange, &innerRange);
 
 		// builds true instructions
 		KETLSyntaxNode* trueBlockNode = expressionNode->nextSibling;
-		buildIRCommand(wip, operationRange, trueBlockNode);
+		KETLSyntaxNode* falseBlockNode = trueBlockNode->nextSibling;
 
-		if (trueBlockNode->nextSibling != NULL) {
-			/*
-			ifJumpOperation->extraNext = createOperation(wip->builder);
+		if (falseBlockNode == NULL) {
+			ifJumpOperation->extraNext = operationRange->next;
+
+			// builds true instructions
+			KETLSyntaxNode* trueBlockNode = expressionNode->nextSibling;
+			buildIRCommandLoopIteration(wip, operationRange, trueBlockNode);
+		}
+		else {
+			IROperationRange sideRange;
+			initSideOperationRange(wip->builder, operationRange, &sideRange);
+
+			ifJumpOperation->extraNext = sideRange.root;
+
+			// builds true instructions
+			buildIRCommandLoopIteration(wip, operationRange, trueBlockNode);
 
 			// builds false instructions
-			KETLSyntaxNode* falseBlockNode = trueBlockNode->nextSibling;
-			buildIRCommand(wip, &innerRange, falseBlockNode);
-			*/
+			buildIRCommandLoopIteration(wip, &sideRange, falseBlockNode);
+			deinitSideOperationRange(wip->builder, &sideRange);
 		}
 
 		restoreScopeContext(wip, savedStack, scopeIndex);
@@ -894,7 +914,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 	}
 }
 
-static void countOperationsAndArguments(KETLIROperation* rootOperation, KETLIntMap* operationReferMap, KETLIntMap* argumentsMap) {
+static void countOperationsAndArguments(KETLIROperation* rootOperation, KETLStack* extraNextStack, KETLIntMap* operationReferMap, KETLIntMap* argumentsMap) {
 	while(rootOperation != NULL) {
 		uint64_t* newRefer;
 		if (!ketlIntMapGetOrCreate(operationReferMap, (KETLIntMapKey)rootOperation, &newRefer)) {
@@ -909,7 +929,11 @@ static void countOperationsAndArguments(KETLIROperation* rootOperation, KETLIntM
 			}
 		}
 		
+		KETLIROperation* extraNext = rootOperation->extraNext;
 		rootOperation = rootOperation->mainNext;
+		if (extraNext != NULL) {
+			*(KETLIROperation**)ketlPushOnStack(extraNextStack) = extraNext;
+		}
 	}
 }
 
@@ -983,8 +1007,17 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	ketlInitIntMap(&operationReferMap, sizeof(uint64_t), 16);
 	KETLIntMap argumentsMap;
 	ketlInitIntMap(&argumentsMap, sizeof(uint64_t), 16);
+	KETLStack extraNextStack;
+	ketlInitStack(&extraNextStack, sizeof(KETLIROperation*), 16);
 
-	countOperationsAndArguments(rootOperation, &operationReferMap, &argumentsMap);
+	*(KETLIROperation**)ketlPushOnStack(&extraNextStack) = rootOperation;
+
+	while (!ketlIsStackEmpty(&extraNextStack)) {
+		KETLIROperation* itOperation = *(KETLIROperation**)ketlPeekStack(&extraNextStack);
+		ketlPopStack(&extraNextStack);
+		countOperationsAndArguments(itOperation, &extraNextStack, &operationReferMap, &argumentsMap);
+	}
+
 	uint64_t operationCount = ketlIntMapGetSize(&operationReferMap);
 	uint64_t argumentsCount = ketlIntMapGetSize(&argumentsMap);
 
@@ -1022,6 +1055,14 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 		for (uint64_t i = 0; i < oldOperation.argumentCount; ++i) {
 			uint64_t* argumentNewIndex = ketlIntMapGet(&argumentsMap, (KETLIntMapKey)oldOperation.arguments[i]);
 			oldOperation.arguments[i] = &arguments[*argumentNewIndex];
+		}
+		if (oldOperation.mainNext != NULL) {
+			uint64_t* operationNewNextIndex = ketlIntMapGet(&operationReferMap, (KETLIntMapKey)oldOperation.mainNext);
+			oldOperation.mainNext = &functionDefinition.function->operations[*operationNewNextIndex];
+		}
+		if (oldOperation.extraNext != NULL) {
+			uint64_t* operationNewNextIndex = ketlIntMapGet(&operationReferMap, (KETLIntMapKey)oldOperation.extraNext);
+			oldOperation.extraNext = &functionDefinition.function->operations[*operationNewNextIndex];
 		}
 		functionDefinition.function->operations[*operationNewIndex] = oldOperation;
 		ketlIntMapIteratorNext(&operationIterator);

@@ -7,6 +7,8 @@
 #include "ketl/function.h"
 #include "ketl/type.h"
 
+#include "ketl/stack.h"
+
 #include <string.h>
 
 #include <stdio.h>
@@ -14,10 +16,9 @@
 static uint64_t addIntLiteralIntoRax(uint8_t* buffer, int64_t value) {
     const uint8_t opcodesArray[] =
     {
-        0x48, 0x05, 0xff, 0xff, 0x00, 0x00,  // add rax, 65535                             
+        0x48, 0x01, 0xd8,   // add rax, rbx                             
     };
     memcpy(buffer, opcodesArray, sizeof(opcodesArray));
-    *(int32_t*)(buffer + 2) = (int32_t)value;
     return sizeof(opcodesArray);
 }
 
@@ -107,8 +108,19 @@ static uint64_t loadRaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
     return 0;
 }
 
+KETL_DEFINE(JumpInfo) {
+    uint64_t bufferOffset;
+    uint64_t fromOffset;
+    KETLIROperation* to;
+};
+
 
 KETLFunction* ketlCompileIR(KETLExecutableMemory* exeMemory, KETLIRFunction* irFunction) {
+    KETLIntMap operationBufferOffsetMap;
+    ketlInitIntMap(&operationBufferOffsetMap, sizeof(uint64_t), 16);
+    KETLStack jumpList;
+    ketlInitStack(&jumpList, sizeof(JumpInfo), 16);
+
     uint8_t opcodesBuffer[4096];
     uint64_t length = 0;
 
@@ -124,33 +136,23 @@ KETLFunction* ketlCompileIR(KETLExecutableMemory* exeMemory, KETLIRFunction* irF
 
     KETLIROperation* itOperation = irFunction->operations;
     for (uint64_t i = 0; i < irFunction->operationsCount; ++i) {
+        {
+            uint64_t* offset;
+            ketlIntMapGetOrCreate(&operationBufferOffsetMap, (KETLIntMapKey)&itOperation[i], &offset);
+            *offset = length;
+        }
 
         switch (itOperation[i].code) {
         case KETL_IR_CODE_ADD_INT64: {
             length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
-            switch (itOperation[i].arguments[2]->type) {
-            case KETL_IR_ARGUMENT_TYPE_STACK: {
+            length += loadArgumentIntoRbx(opcodesBuffer + length, itOperation[i].arguments[2]);
+            {
                 const uint8_t opcodesArray[] =
                 {
-                     0x48, 0x03, 0x84, 0x24, 0xff, 0xff, 0x00, 0x00,              // add     rax, QWORD PTR [rsp + 65535] 
+                    0x48, 0x01, 0xd8,   // add rax, rbx                             
                 };
                 memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
-                *(int32_t*)(opcodesBuffer + length + 4) = (int32_t)itOperation[i].arguments[2]->stack;
                 length += sizeof(opcodesArray);
-                break;
-            }
-            case KETL_IR_ARGUMENT_TYPE_INT8:
-                length += addIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[2]->int8);
-                break;
-            case KETL_IR_ARGUMENT_TYPE_INT16:
-                length += addIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[2]->int16);
-                break;
-            case KETL_IR_ARGUMENT_TYPE_INT32:
-                length += addIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[2]->int32);
-                break;
-            case KETL_IR_ARGUMENT_TYPE_INT64:
-                length += addIntLiteralIntoRax(opcodesBuffer + length, itOperation[i].arguments[2]->int64);
-                break;
             }
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
             break;
@@ -170,28 +172,43 @@ KETLFunction* ketlCompileIR(KETLExecutableMemory* exeMemory, KETLIRFunction* irF
             {
                 const uint8_t opcodesArray[] =
                 {
-                    0x75, 0x11,                                                                 // jne false
+                    0x0f, 0x94, 0xc0,                                                               // sete al
                 };
                 memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
                 length += sizeof(opcodesArray);
             }
-            length += loadIntLiteralIntoRax(opcodesBuffer + length, 1);
-            length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
-            {
-                const uint8_t opcodesArray[] =
-                {
-                    0xeb, 0x0f,                                                                 // jmp end
-                };
-                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
-                length += sizeof(opcodesArray);
-            }
-            length += loadIntLiteralIntoRax(opcodesBuffer + length, 0);
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
             break;
         }
         case KETL_IR_CODE_ASSIGN_8_BYTES: {
             length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
+            break;
+        }
+        case KETL_IR_CODE_JUMP_IF_FALSE: {
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[0]);
+            {
+                const uint8_t opcodesArray[] =
+                {
+                    0x48, 0x85, 0xc0,                                   // test rax, rax
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+                length += sizeof(opcodesArray);
+            }
+            {
+                const uint8_t opcodesArray[] =
+                {
+                    0x0f, 0x84, 0xf9, 0xff, 0x00, 0x00,                 // je .65535
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+
+                JumpInfo jumpInfo;
+                jumpInfo.bufferOffset = length + 2;
+                length += sizeof(opcodesArray);
+                jumpInfo.fromOffset = length;
+                jumpInfo.to = itOperation[i].extraNext;
+                *(JumpInfo*)ketlPushOnStack(&jumpList) = jumpInfo;
+            }
             break;
         }
         case KETL_IR_CODE_RETURN: {
@@ -216,6 +233,32 @@ KETLFunction* ketlCompileIR(KETLExecutableMemory* exeMemory, KETLIRFunction* irF
         }
         default:
             __debugbreak();
+        }
+
+        KETLIROperation* mainNext = itOperation[i].mainNext;
+        if (mainNext != NULL && mainNext != &itOperation[i + 1]) {
+            const uint8_t opcodesArray[] =
+            {
+                0xe9, 0xff, 0xff, 0x00, 0x00,                 // jmp .65535
+            };
+            memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+
+            JumpInfo jumpInfo;
+            jumpInfo.bufferOffset = length + 1;
+            length += sizeof(opcodesArray);
+            jumpInfo.fromOffset = length;
+            jumpInfo.to = itOperation[i].mainNext;
+            *(JumpInfo*)ketlPushOnStack(&jumpList) = jumpInfo;
+        }
+    }
+
+    {
+        KETLStackIterator jumpIterator;
+        ketlInitStackIterator(&jumpIterator, &jumpList);
+        while (ketlIteratorStackHasNext(&jumpIterator)) {
+            JumpInfo* jumpInfo = ketlIteratorStackGetNext(&jumpIterator);
+            uint64_t* toOffset = ketlIntMapGet(&operationBufferOffsetMap, (KETLIntMapKey)jumpInfo->to);
+            *(int32_t*)(opcodesBuffer + jumpInfo->bufferOffset) = (int32_t)(*toOffset - jumpInfo->fromOffset);
         }
     }
 

@@ -17,13 +17,15 @@ extern "C" {
 
 int main(int argc, char** argv) {	
 	auto source = R"(
-	i64 test := 0;
-	{
+	i64 test := 11;
+	if (1 == 1) {
 		i64 a := 5;
 		i64 b := 3;
 		test := a + b;
+	} else {
+		test := 15;
 	}
-	return 3 == 5;
+	return test;
 )";
 
 	KETLState ketlState;
