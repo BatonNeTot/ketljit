@@ -14,12 +14,6 @@
 
 KETL_FORWARD(KETLType);
 
-KETL_DEFINE(IRUndefinedValue) {
-	KETLIRVariable* variable;
-	uint64_t scopeIndex;
-	IRUndefinedValue* next;
-};
-
 KETL_DEFINE(IRUndefinedDelegate) {
 	IRUndefinedValue* caller;
 	IRUndefinedValue* arguments;
@@ -45,17 +39,19 @@ void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state) {
 	ketlInitObjectPool(&irBuilder->argumentPointersPool, sizeof(KETLIRArgument*), 32);
 	ketlInitObjectPool(&irBuilder->argumentsPool, sizeof(KETLIRArgument), 16);
 
+	ketlInitObjectPool(&irBuilder->castingPool, sizeof(CastingOption), 16);
+
 	ketlInitIntMap(&irBuilder->operationReferMap, sizeof(uint64_t), 16);
 	ketlInitIntMap(&irBuilder->argumentsMap, sizeof(uint64_t), 16);
-
-	ketlInitObjectPool(&irBuilder->castingPool, sizeof(CastingOption), 16);
+	ketlInitStack(&irBuilder->extraNextStack, sizeof(KETLIROperation*), 16);
 }
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder) {
-	ketlDeinitObjectPool(&irBuilder->castingPool);
-
+	ketlDeinitStack(&irBuilder->extraNextStack);
 	ketlDeinitIntMap(&irBuilder->argumentsMap);
 	ketlDeinitIntMap(&irBuilder->operationReferMap);
+
+	ketlDeinitObjectPool(&irBuilder->castingPool);
 
 	ketlDeinitObjectPool(&irBuilder->argumentsPool);
 	ketlDeinitObjectPool(&irBuilder->argumentPointersPool);
@@ -473,8 +469,11 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 	switch (it->type) {
 	case KETL_SYNTAX_NODE_TYPE_ID: {
 		const char* uniqName = ketlAtomicStringsGet(&wip->builder->state->strings, it->value, it->length);
-		IRUndefinedValue** ppValue;
-		if (ketlIntMapGetOrCreate(&wip->builder->variablesMap, (KETLIntMapKey)uniqName, &ppValue)) {
+		IRUndefinedValue** ppValue = ketlIntMapGet(&wip->builder->variablesMap, (KETLIntMapKey)uniqName);
+		if (ppValue == NULL) {
+			ppValue = ketlIntMapGet(&wip->builder->state->globalNamespace.variables, (KETLIntMapKey)uniqName);
+		}
+		if (ppValue == NULL) {
 			// TODO error
 			__debugbreak();
 		}
@@ -485,6 +484,7 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 		Literal literal = parseLiteral(wip, it->value, it->length);
 		if (literal.type == NULL) {
 			// TODO error
+			__debugbreak();
 		}
 		KETLIRVariable* variable = ketlGetFreeObjectFromPool(&wip->builder->variablesPool);
 		variable->type = literal.type;
@@ -914,25 +914,25 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 	}
 }
 
-static void countOperationsAndArguments(KETLIROperation* rootOperation, KETLStack* extraNextStack, KETLIntMap* operationReferMap, KETLIntMap* argumentsMap) {
+static void countOperationsAndArguments(KETLIROperation* rootOperation, KETLIRBuilder* irBuilder) {
 	while(rootOperation != NULL) {
 		uint64_t* newRefer;
-		if (!ketlIntMapGetOrCreate(operationReferMap, (KETLIntMapKey)rootOperation, &newRefer)) {
+		if (!ketlIntMapGetOrCreate(&irBuilder->operationReferMap, (KETLIntMapKey)rootOperation, &newRefer)) {
 			return;
 		}
-		*newRefer = ketlIntMapGetSize(operationReferMap) - 1;
+		*newRefer = ketlIntMapGetSize(&irBuilder->operationReferMap) - 1;
 
 		uint64_t* newIndex;
 		for (uint64_t i = 0; i < rootOperation->argumentCount; ++i) {
-			if (ketlIntMapGetOrCreate(argumentsMap, (KETLIntMapKey)rootOperation->arguments[i], &newIndex)) {
-				*newIndex = ketlIntMapGetSize(argumentsMap) - 1;
+			if (ketlIntMapGetOrCreate(&irBuilder->argumentsMap, (KETLIntMapKey)rootOperation->arguments[i], &newIndex)) {
+				*newIndex = ketlIntMapGetSize(&irBuilder->argumentsMap) - 1;
 			}
 		}
 		
 		KETLIROperation* extraNext = rootOperation->extraNext;
 		rootOperation = rootOperation->mainNext;
 		if (extraNext != NULL) {
-			*(KETLIROperation**)ketlPushOnStack(extraNextStack) = extraNext;
+			*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = extraNext;
 		}
 	}
 }
@@ -995,7 +995,7 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	wip.stackRoot = NULL;
 	wip.currentStack = NULL;
 
-	wip.scopeIndex = 0;
+	wip.scopeIndex = 1;
 
 	KETLIROperation* rootOperation = createOperationImpl(irBuilder);
 	IROperationRange range;
@@ -1003,36 +1003,39 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	range.next = NULL;
 	buildIRCommand(&wip, &range, syntaxNodeRoot);
 
-	KETLIntMap operationReferMap;
-	ketlInitIntMap(&operationReferMap, sizeof(uint64_t), 16);
-	KETLIntMap argumentsMap;
-	ketlInitIntMap(&argumentsMap, sizeof(uint64_t), 16);
-	KETLStack extraNextStack;
-	ketlInitStack(&extraNextStack, sizeof(KETLIROperation*), 16);
+	ketlIntMapReset(&irBuilder->operationReferMap);
+	ketlIntMapReset(&irBuilder->argumentsMap);
+	ketlResetStack(&irBuilder->extraNextStack);
 
-	*(KETLIROperation**)ketlPushOnStack(&extraNextStack) = rootOperation;
+	*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = rootOperation;
 
-	while (!ketlIsStackEmpty(&extraNextStack)) {
-		KETLIROperation* itOperation = *(KETLIROperation**)ketlPeekStack(&extraNextStack);
-		ketlPopStack(&extraNextStack);
-		countOperationsAndArguments(itOperation, &extraNextStack, &operationReferMap, &argumentsMap);
+	while (!ketlIsStackEmpty(&irBuilder->extraNextStack)) {
+		KETLIROperation* itOperation = *(KETLIROperation**)ketlPeekStack(&irBuilder->extraNextStack);
+		ketlPopStack(&irBuilder->extraNextStack);
+		countOperationsAndArguments(itOperation, irBuilder);
 	}
 
-	uint64_t operationCount = ketlIntMapGetSize(&operationReferMap);
-	uint64_t argumentsCount = ketlIntMapGetSize(&argumentsMap);
+	uint64_t operationCount = ketlIntMapGetSize(&irBuilder->operationReferMap);
+	uint64_t argumentsCount = ketlIntMapGetSize(&irBuilder->argumentsMap);
 
 	uint64_t maxStackOffset = bakeStackUsage(&wip);
 
 	KETLIRFunctionDefinition functionDefinition;
 
- 	functionDefinition.function = malloc(sizeof(KETLIRFunction));
+	// TODO align
+	uint64_t totalSize = sizeof(KETLIRFunction) + sizeof(KETLIRArgument) * argumentsCount + sizeof(KETLIROperation) * operationCount;
+	uint8_t* rawPointer = malloc(totalSize);
+
+ 	functionDefinition.function = (KETLIRFunction*)rawPointer;
+	rawPointer += sizeof(KETLIRFunction);
 
 	functionDefinition.function->stackUsage = maxStackOffset;
 
-	functionDefinition.function->arguments = malloc(sizeof(KETLIRArgument) * argumentsCount);
+	functionDefinition.function->arguments = (KETLIRArgument*)rawPointer;
+	rawPointer += sizeof(KETLIRArgument) * argumentsCount;
 
 	KETLIntMapIterator argumentIterator;
-	ketlInitIntMapIterator(&argumentIterator, &argumentsMap);
+	ketlInitIntMapIterator(&argumentIterator, &irBuilder->argumentsMap);
 	while (ketlIntMapIteratorHasNext(&argumentIterator)) {
 		KETLIRArgument* oldArgument;
 		uint64_t* argumentNewIndex;
@@ -1042,10 +1045,10 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	}
 
 	functionDefinition.function->operationsCount = operationCount;
-	functionDefinition.function->operations = malloc(sizeof(KETLIROperation) * operationCount);
+	functionDefinition.function->operations = (KETLIROperation*)rawPointer;
 
 	KETLIntMapIterator operationIterator;
-	ketlInitIntMapIterator(&operationIterator, &operationReferMap);
+	ketlInitIntMapIterator(&operationIterator, &irBuilder->operationReferMap);
 	while (ketlIntMapIteratorHasNext(&operationIterator)) {
 		KETLIROperation* pOldOperation;
 		uint64_t* operationNewIndex;
@@ -1053,15 +1056,15 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 		KETLIROperation oldOperation = *pOldOperation;
 		KETLIRArgument* arguments = functionDefinition.function->arguments;
 		for (uint64_t i = 0; i < oldOperation.argumentCount; ++i) {
-			uint64_t* argumentNewIndex = ketlIntMapGet(&argumentsMap, (KETLIntMapKey)oldOperation.arguments[i]);
+			uint64_t* argumentNewIndex = ketlIntMapGet(&irBuilder->argumentsMap, (KETLIntMapKey)oldOperation.arguments[i]);
 			oldOperation.arguments[i] = &arguments[*argumentNewIndex];
 		}
 		if (oldOperation.mainNext != NULL) {
-			uint64_t* operationNewNextIndex = ketlIntMapGet(&operationReferMap, (KETLIntMapKey)oldOperation.mainNext);
+			uint64_t* operationNewNextIndex = ketlIntMapGet(&irBuilder->operationReferMap, (KETLIntMapKey)oldOperation.mainNext);
 			oldOperation.mainNext = &functionDefinition.function->operations[*operationNewNextIndex];
 		}
 		if (oldOperation.extraNext != NULL) {
-			uint64_t* operationNewNextIndex = ketlIntMapGet(&operationReferMap, (KETLIntMapKey)oldOperation.extraNext);
+			uint64_t* operationNewNextIndex = ketlIntMapGet(&irBuilder->operationReferMap, (KETLIntMapKey)oldOperation.extraNext);
 			oldOperation.extraNext = &functionDefinition.function->operations[*operationNewNextIndex];
 		}
 		functionDefinition.function->operations[*operationNewIndex] = oldOperation;

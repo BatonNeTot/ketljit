@@ -2,6 +2,7 @@
 #ifndef ketl_h
 #define ketl_h
 
+#include "compiler/ir_compiler.h"
 #include "compiler/compiler.h"
 #include "ketl/atomic_strings.h"
 #include "ketl/object_pool.h"
@@ -50,6 +51,7 @@ KETL_DEFINE(KETLCastOperator) {
 KETL_DEFINE(KETLState) {
 	KETLAtomicStrings strings;
 	KETLCompiler compiler;
+	KETLIRCompiler irCompiler;
 	KETLNamespace globalNamespace;
 	struct {
 		KETLType* bool_t;
@@ -71,10 +73,15 @@ KETL_DEFINE(KETLState) {
 	KETLIntMap unaryOperators;
 	KETLIntMap binaryOperators;
 	KETLIntMap castOperators;
+
+	KETLObjectPool undefVarPool;
+	KETLObjectPool variablesPool;
 };
 
 void ketlInitState(KETLState* state);
 
 void ketlDeinitState(KETLState* state);
+
+void ketlDefineVariable(KETLState* state, const char* name, KETLType* type, void* pointer);
 
 #endif /*ketl_h*/

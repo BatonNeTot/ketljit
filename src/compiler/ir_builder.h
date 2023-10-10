@@ -7,10 +7,11 @@
 #include "ketl/compiler/syntax_node.h"
 #include "ketl/type.h"
 
-#include "ketl/utils.h"
-
 #include "ketl/object_pool.h"
 #include "ketl/int_map.h"
+#include "ketl/stack.h"
+
+#include "ketl/utils.h"
 
 KETL_FORWARD(KETLState);
 
@@ -18,6 +19,12 @@ KETL_DEFINE(KETLIRVariable) {
 	KETLType* type;
 	KETLVariableTraits traits;
 	KETLIRArgument value;
+};
+
+KETL_DEFINE(IRUndefinedValue) {
+	KETLIRVariable* variable;
+	uint64_t scopeIndex;
+	IRUndefinedValue* next;
 };
 
 KETL_DEFINE(KETLIRScopedVariable) {
@@ -39,10 +46,11 @@ KETL_DEFINE(KETLIRBuilder) {
 	KETLObjectPool argumentPointersPool;
 	KETLObjectPool argumentsPool;
 
+	KETLObjectPool castingPool;
+
 	KETLIntMap operationReferMap;
 	KETLIntMap argumentsMap;
-
-	KETLObjectPool castingPool;
+	KETLStack extraNextStack;
 
 	KETLState* state;
 };

@@ -1,12 +1,14 @@
 ﻿//🍲ketl
 #include "ketl/ketl.h"
 
+#include "compiler/ir_builder.h"
+
 #include "ketl/compiler/syntax_node.h"
 #include "ketl/type.h"
 
 static void initNamespace(KETLNamespace* namespace) {
 	ketlInitIntMap(&namespace->types, sizeof(KETLType), 16);
-	ketlInitIntMap(&namespace->variables, sizeof(KETLType), 16);
+	ketlInitIntMap(&namespace->variables, sizeof(IRUndefinedValue*), 16);
 	ketlInitIntMap(&namespace->namespaces, sizeof(KETLNamespace), 8);
 }
 
@@ -25,7 +27,8 @@ static KETLType* createPrimitive(KETLState* state, const char* name, uint64_t si
 	type->name = name;
 	type->kind = KETL_TYPE_KIND_PRIMITIVE;
 	type->size = size;
-	ketlInitIntMap(&type->variables, sizeof(KETLTypeVariable), 0);
+	// TODO
+	//ketlInitIntMap(&type->variables, sizeof(KETLTypeVariable), 0);
 
 	return type;
 }
@@ -119,9 +122,25 @@ static void registerCastOperator(KETLState* state, KETLType* sourceType, KETLTyp
 
 }
 
+void ketlDeinitState(KETLState* state) {
+	ketlDeinitObjectPool(&state->variablesPool);
+	ketlDeinitObjectPool(&state->undefVarPool);
+	ketlDeinitIntMap(&state->castOperators);
+	ketlDeinitIntMap(&state->binaryOperators);
+	ketlDeinitIntMap(&state->unaryOperators);
+	ketlDeinitObjectPool(&state->castOperatorsPool);
+	ketlDeinitObjectPool(&state->binaryOperatorsPool);
+	ketlDeinitObjectPool(&state->unaryOperatorsPool);
+	deinitNamespace(&state->globalNamespace);
+	ketlIRCompilerDeinit(&state->irCompiler);
+	ketlDeinitCompiler(&state->compiler);
+	ketlDeinitAtomicStrings(&state->strings);
+}
+
 void ketlInitState(KETLState* state) {
 	ketlInitAtomicStrings(&state->strings, 16);
 	ketlInitCompiler(&state->compiler, state);
+	ketlIRCompilerInit(&state->irCompiler);
 	initNamespace(&state->globalNamespace);
 
 	ketlInitObjectPool(&state->unaryOperatorsPool, sizeof(KETLUnaryOperator), 8);
@@ -130,6 +149,9 @@ void ketlInitState(KETLState* state) {
 	ketlInitIntMap(&state->unaryOperators, sizeof(KETLUnaryOperator*), 4);
 	ketlInitIntMap(&state->binaryOperators, sizeof(KETLBinaryOperator*), 4);
 	ketlInitIntMap(&state->castOperators, sizeof(KETLCastOperator*), 4);
+
+	ketlInitObjectPool(&state->undefVarPool, sizeof(IRUndefinedValue), 16);
+	ketlInitObjectPool(&state->variablesPool, sizeof(KETLIRVariable), 16);
 
 	state->primitives.bool_t = createPrimitive(state, "bool", sizeof(bool));
 	state->primitives.i8_t = createPrimitive(state, "i8", sizeof(int8_t));
@@ -206,14 +228,25 @@ void ketlInitState(KETLState* state) {
 	registerCastOperator(state, state->primitives.f64_t, state->primitives.i8_t, KETL_IR_CODE_CAST_FLOAT64_INT8, false);
 }
 
-void ketlDeinitState(KETLState* state) {
-	ketlDeinitIntMap(&state->castOperators);
-	ketlDeinitIntMap(&state->binaryOperators);
-	ketlDeinitIntMap(&state->unaryOperators);
-	ketlDeinitObjectPool(&state->castOperatorsPool);
-	ketlDeinitObjectPool(&state->binaryOperatorsPool);
-	ketlDeinitObjectPool(&state->unaryOperatorsPool);
-	deinitNamespace(&state->globalNamespace);
-	ketlDeinitCompiler(&state->compiler);
-	ketlDeinitAtomicStrings(&state->strings);
+#include <stdlib.h>
+
+void ketlDefineVariable(KETLState* state, const char* name, KETLType* type, void* pointer) {
+	KETLIRVariable* variable = ketlGetFreeObjectFromPool(&state->variablesPool);
+	variable->type = type;
+	variable->traits.isConst = false;
+	variable->traits.isNullable = false;
+	variable->traits.type = KETL_TRAIT_TYPE_LVALUE;
+	variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
+	variable->value.pointer = pointer;
+
+	IRUndefinedValue* uvalue = ketlGetFreeObjectFromPool(&state->undefVarPool);
+	uvalue->variable = variable;
+	uvalue->scopeIndex = 0;
+	uvalue->next = NULL;
+
+	const char* uniqName = ketlAtomicStringsGet(&state->strings, name, KETL_NULL_TERMINATED_LENGTH);
+
+	IRUndefinedValue** ppUValue;
+	ketlIntMapGetOrCreate(&state->globalNamespace.variables, (KETLIntMapKey)uniqName, &ppUValue);
+	*ppUValue = uvalue;
 }

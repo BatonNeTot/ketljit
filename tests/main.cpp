@@ -1,6 +1,9 @@
 ﻿/*🍲Ketl🍲*/
 #include <iostream>
 #include <vector>
+#include <string>
+
+#include <cstdlib>
 
 extern "C" {
 #include "ketl/ketl.h"
@@ -17,40 +20,36 @@ extern "C" {
 
 int main(int argc, char** argv) {	
 	auto source = R"(
-	i64 test := 11;
-	if (1 == 1) {
-		i64 a := 5;
-		i64 b := 3;
-		test := a + b;
-	} else {
-		test := 15;
-	}
+	var test := 7;
 	return test;
 )";
 
-	KETLState ketlState;
 
-	ketlInitState(&ketlState);
+	for (uint64_t i = 0; i < 10000; ++i) {
+		KETLState ketlState;
 
-	auto root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &ketlState.compiler.bytecodeCompiler.syntaxSolver, &ketlState.compiler.bytecodeCompiler.syntaxNodePool);
+		ketlInitState(&ketlState);
 
-	KETLIRFunction* irFunction = ketlBuildIR(nullptr, &ketlState.compiler.irBuilder, root);
+		int64_t testVariable = 4;
+		ketlDefineVariable(&ketlState, "test", ketlState.primitives.i64_t, &testVariable);
 
-	// TODO optimization on ir
+		auto root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &ketlState.compiler.bytecodeCompiler.syntaxSolver, &ketlState.compiler.bytecodeCompiler.syntaxNodePool);
+		
+		KETLIRFunction* irFunction = ketlBuildIR(nullptr, &ketlState.compiler.irBuilder, root);
 
-	KETLExecutableMemory exeMemory;
-	ketlInitExecutableMemory(&exeMemory);
+		// TODO optimization on ir
 
-	KETLFunction* function = ketlCompileIR(&exeMemory, irFunction);
+		KETLFunction* function = ketlCompileIR(&ketlState.irCompiler, irFunction);
+		free(irFunction);
 
-	int64_t result = 0;
-	ketlCallFunction(function, &result);
+		int64_t result = 0;
+		ketlCallFunction(function, &result);
 
-	std::cout << result << std::endl;
+		std::cout << result << std::endl;
+		std::cout << testVariable << std::endl;
 
-	ketlDeinitExecutableMemory(&exeMemory);
-
-	ketlDeinitState(&ketlState);
+		ketlDeinitState(&ketlState);
+	}
 
 	return 0;
 }
