@@ -8,6 +8,6 @@
 
 KETL_FORWARD(KETLFunction);
 
-void ketlCallFunction(KETLFunction* function, void* returnPtr);
+void ketlCallFunction(KETLFunction* function, volatile void* returnPtr);
 
 #endif /*function_h*/

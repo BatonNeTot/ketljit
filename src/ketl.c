@@ -250,3 +250,16 @@ void ketlDefineVariable(KETLState* state, const char* name, KETLType* type, void
 	ketlIntMapGetOrCreate(&state->globalNamespace.variables, (KETLIntMapKey)uniqName, &ppUValue);
 	*ppUValue = uvalue;
 }
+
+KETLFunction* ketlCompileFunction(KETLState* state, const char* source) {
+	KETLSyntaxNode* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
+
+	KETLIRFunction* irFunction = ketlBuildIR(NULL, &state->compiler.irBuilder, root);
+
+	// TODO optimization on ir
+
+	KETLFunction* function = ketlCompileIR(&state->irCompiler, irFunction);
+	free(irFunction);
+	return function;
+}
+

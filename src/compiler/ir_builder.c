@@ -844,6 +844,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 			// builds true instructions
 			KETLSyntaxNode* trueBlockNode = expressionNode->nextSibling;
 			buildIRCommandLoopIteration(wip, operationRange, trueBlockNode);
+			// TODO check if true block is empty
 		}
 		else {
 			IROperationRange sideRange;
@@ -852,10 +853,20 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 			ifJumpOperation->extraNext = sideRange.root;
 
 			// builds true instructions
+			KETLIROperation* checkTrueRoot = operationRange->root;
 			buildIRCommandLoopIteration(wip, operationRange, trueBlockNode);
+			if (checkTrueRoot == operationRange->root) {
+				KETLIROperation* tmp = operationRange->root;
+				operationRange->root = operationRange->next;
+				operationRange->next = tmp;
+
+				ifJumpOperation->mainNext = operationRange->root;
+			}
+			// TODO check if true block is empty
 
 			// builds false instructions
 			buildIRCommandLoopIteration(wip, &sideRange, falseBlockNode);
+			// TODO check if false block is empty
 			deinitSideOperationRange(wip->builder, &sideRange);
 		}
 

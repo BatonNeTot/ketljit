@@ -10,15 +10,6 @@
 
 #include <stdio.h>
 
-static uint64_t addIntLiteralIntoRax(uint8_t* buffer, int64_t value) {
-    const uint8_t opcodesArray[] =
-    {
-        0x48, 0x01, 0xd8,   // add rax, rbx                             
-    };
-    memcpy(buffer, opcodesArray, sizeof(opcodesArray));
-    return sizeof(opcodesArray);
-}
-
 static uint64_t loadIntLiteralIntoRax(uint8_t* buffer, int64_t value) {
     const uint8_t opcodesArray[] =
     {
@@ -29,10 +20,10 @@ static uint64_t loadIntLiteralIntoRax(uint8_t* buffer, int64_t value) {
     return sizeof(opcodesArray);
 }
 
-static uint64_t loadIntLiteralIntoRbx(uint8_t* buffer, int64_t value) {
+static uint64_t loadIntLiteralIntoRcx(uint8_t* buffer, int64_t value) {
     const uint8_t opcodesArray[] =
     {
-        0x48, 0xc7, 0xc3, 0xff, 0xff, 0x00, 0x00,  // mov rbx, 65535                             
+        0x48, 0xc7, 0xc1, 0xff, 0xff, 0x00, 0x00,  // mov rcx, 65535                             
     };
     memcpy(buffer, opcodesArray, sizeof(opcodesArray));
     *(int32_t*)(buffer + 3) = (int32_t)value;
@@ -72,25 +63,25 @@ static uint64_t loadArgumentIntoRax(uint8_t* buffer, KETLIRArgument* argument) {
     return 0;
 }
 
-static uint64_t loadArgumentIntoRbx(uint8_t* buffer, KETLIRArgument* argument) {
+static uint64_t loadArgumentIntoRcx(uint8_t* buffer, KETLIRArgument* argument) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
         {
-             0x48, 0x8b, 0x9c, 0x24, 0xff, 0xff, 0x00, 0x00,              // mov     rbx, QWORD PTR [rsp + 65535] 
+             0x48, 0x8b, 0x8c, 0x24, 0xff, 0xff, 0x00, 0x00,              // mov     rcx, QWORD PTR [rsp + 65535] 
         };
         memcpy(buffer, opcodesArray, sizeof(opcodesArray));
         *(int32_t*)(buffer + 4) = (int32_t)argument->stack;
         return sizeof(opcodesArray);
     }
     case KETL_IR_ARGUMENT_TYPE_INT8:
-        return loadIntLiteralIntoRbx(buffer, argument->int8);
+        return loadIntLiteralIntoRcx(buffer, argument->int8);
     case KETL_IR_ARGUMENT_TYPE_INT16:
-        return loadIntLiteralIntoRbx(buffer, argument->int16);
+        return loadIntLiteralIntoRcx(buffer, argument->int16);
     case KETL_IR_ARGUMENT_TYPE_INT32:
-        return loadIntLiteralIntoRbx(buffer, argument->int32);
+        return loadIntLiteralIntoRcx(buffer, argument->int32);
     case KETL_IR_ARGUMENT_TYPE_INT64:
-        return loadIntLiteralIntoRbx(buffer, argument->int64);
+        return loadIntLiteralIntoRcx(buffer, argument->int64);
     }
     __debugbreak();
     return 0;
@@ -123,6 +114,15 @@ static uint64_t loadRaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
     return 0;
 }
 
+static uint64_t compareRaxAndRcx(uint8_t* buffer) {
+    const uint8_t opcodesArray[] =
+    {
+        0x48, 0x39, 0xc8,               // cmp     rax, rcx                         
+    };
+    memcpy(buffer, opcodesArray, sizeof(opcodesArray));
+    return sizeof(opcodesArray);
+}
+
 KETL_DEFINE(JumpInfo) {
     uint64_t bufferOffset;
     uint64_t fromOffset;
@@ -135,7 +135,8 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
     ketlResetStack(&irCompiler->jumpList);
 
     const uint64_t shadowSpaceSize = 32;
-    const uint64_t stackUsage = irFunction->stackUsage + shadowSpaceSize;
+    uint64_t stackUsage = irFunction->stackUsage + shadowSpaceSize;
+    stackUsage = ((stackUsage + 15) / 16) * 16;
 
     uint8_t opcodesBuffer[4096];
     uint64_t length = 0;
@@ -161,11 +162,11 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
         switch (itOperation[i].code) {
         case KETL_IR_CODE_ADD_INT64: {
             length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
-            length += loadArgumentIntoRbx(opcodesBuffer + length, itOperation[i].arguments[2]);
+            length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2]);
             {
                 const uint8_t opcodesArray[] =
                 {
-                    0x48, 0x01, 0xd8,   // add rax, rbx                             
+                    0x48, 0x01, 0xc8,   // add rax, rcx                                   
                 };
                 memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
                 length += sizeof(opcodesArray);
@@ -175,20 +176,27 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
         }
         case KETL_IR_CODE_EQUAL_INT64: {
             length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
-            length += loadArgumentIntoRbx(opcodesBuffer + length, itOperation[i].arguments[2]);
-            {
-                const uint8_t opcodesArray[] =
-                {
-                    0x48, 0x39, 0xd8,               // cmp     rax, rbx
-                };
-                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
-                *(int32_t*)(opcodesBuffer + length + 4) = (int32_t)itOperation[i].arguments[1]->stack;
-                length += sizeof(opcodesArray);
-            }
+            length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2]);
+            length += compareRaxAndRcx(opcodesBuffer + length);
             {
                 const uint8_t opcodesArray[] =
                 {
                     0x0f, 0x94, 0xc0,                                                               // sete al
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+                length += sizeof(opcodesArray);
+            }
+            length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
+            break;
+        }
+        case KETL_IR_CODE_UNEQUAL_INT64: {
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
+            length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2]);
+            length += compareRaxAndRcx(opcodesBuffer + length);
+            {
+                const uint8_t opcodesArray[] =
+                {
+                    0x0f, 0x95, 0xc0,                                                               // setne al
                 };
                 memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
                 length += sizeof(opcodesArray);
@@ -279,10 +287,14 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
     }
 
     const uint8_t* opcodes = opcodesBuffer;
+
+    /*
     for (uint64_t i = 0; i < length; ++i) {
         printf("%.2X ", opcodes[i]);
     }
     printf("\n");
+    //*/
+
     return (KETLFunction*)ketlExecutableMemoryAllocate(&irCompiler->exeMemory, &opcodes, sizeof(opcodesBuffer), length);
 }
 
