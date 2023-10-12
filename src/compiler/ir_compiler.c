@@ -89,8 +89,6 @@ static uint64_t loadArgumentIntoRcx(uint8_t* buffer, KETLIRArgument* argument) {
 
 static uint64_t loadRaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
     switch (argument->type) {
-    case KETL_IR_ARGUMENT_TYPE_RETURN:
-        return 0;
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
         {
@@ -234,6 +232,9 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
                 *(JumpInfo*)ketlPushOnStack(&irCompiler->jumpList) = jumpInfo;
             }
             break;
+        }
+        case KETL_IR_CODE_RETURN_8_BYTES: {
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[0]);
         }
         case KETL_IR_CODE_RETURN: {
             if (stackUsage > 0) {

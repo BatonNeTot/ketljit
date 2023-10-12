@@ -18,12 +18,14 @@ int main(int argc, char** argv) {
 #ifdef NDEBUG
 	launchSpeedTests(10000000);
 #else
-	launchSpeedTests(1000);
+	launchSpeedTests(10000);
 #endif
 
 	auto source = R"(
-	var test := 7;
-	return test;
+	if (test == 4) {
+		return;
+	}
+	test := 7;
 )";
 
 
@@ -35,9 +37,13 @@ int main(int argc, char** argv) {
 
 		KETL::Function function = ketlState.compile(source);
 
-		int64_t result = function();
+		function.call();
 
-		std::cout << result << std::endl;
+		std::cout << testVariable << std::endl;
+
+		testVariable = 5;
+		function.call();
+
 		std::cout << testVariable << std::endl;
 	}
 

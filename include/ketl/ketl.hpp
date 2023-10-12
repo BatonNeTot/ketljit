@@ -22,6 +22,11 @@ namespace KETL {
 			return result;
 		}
 
+		void call() {
+			using func_t = void(*)();
+			reinterpret_cast<func_t>(_functionImpl)();
+		}
+
 		explicit operator bool() {
 			return _functionImpl;
 		}

@@ -109,8 +109,7 @@ static inline KETLIROperation* createOperationFromRange(KETLIRBuilder* irBuilder
 
 static inline KETLIROperation* createLastOperationFromRange(KETLIRBuilder* irBuilder, IROperationRange* range) {
 	KETLIROperation* operation = range->root;
-	recycleOperationImpl(irBuilder, range->next);
-	operation->extraNext = operation->mainNext = range->root = range->next = NULL;
+	operation->extraNext = operation->mainNext = range->root = NULL;
 	return operation;
 }
 
@@ -843,8 +842,19 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 
 			// builds true instructions
 			KETLSyntaxNode* trueBlockNode = expressionNode->nextSibling;
+			KETLIROperation* checkTrueRoot = operationRange->root;
 			buildIRCommandLoopIteration(wip, operationRange, trueBlockNode);
-			// TODO check if true block is empty
+			KETLIROperation* newRoot = operationRange->root;
+			if (checkTrueRoot == newRoot) {
+				operationRange->root = operationRange->next;
+				operationRange->next = newRoot;
+
+				ifJumpOperation->mainNext = operationRange->root;
+			}
+			else if (NULL == newRoot) {
+				operationRange->root = operationRange->next;
+				operationRange->next = createOperationImpl(wip->builder);
+			}
 		}
 		else {
 			IROperationRange sideRange;
@@ -855,59 +865,63 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 			// builds true instructions
 			KETLIROperation* checkTrueRoot = operationRange->root;
 			buildIRCommandLoopIteration(wip, operationRange, trueBlockNode);
-			if (checkTrueRoot == operationRange->root) {
-				KETLIROperation* tmp = operationRange->root;
+			KETLIROperation* newRoot = operationRange->root;
+			if (checkTrueRoot == newRoot) {
 				operationRange->root = operationRange->next;
-				operationRange->next = tmp;
+				operationRange->next = newRoot;
 
 				ifJumpOperation->mainNext = operationRange->root;
-			}
-			// TODO check if true block is empty
 
-			// builds false instructions
-			buildIRCommandLoopIteration(wip, &sideRange, falseBlockNode);
-			// TODO check if false block is empty
-			deinitSideOperationRange(wip->builder, &sideRange);
+				// builds false instructions
+				buildIRCommandLoopIteration(wip, &sideRange, falseBlockNode);
+				// TODO check if false block is empty
+				deinitSideOperationRange(wip->builder, &sideRange);
+			}
+			else if (NULL != newRoot) {
+				// builds false instructions
+				buildIRCommandLoopIteration(wip, &sideRange, falseBlockNode);
+				// TODO check if false block is empty
+				deinitSideOperationRange(wip->builder, &sideRange);
+			}
+			else {
+				// builds false instructions
+				buildIRCommandLoopIteration(wip, &sideRange, falseBlockNode);
+				*operationRange = sideRange;
+			}
 		}
 
 		restoreScopeContext(wip, savedStack, scopeIndex);
 		break;
 	}
 	case KETL_SYNTAX_NODE_TYPE_RETURN: {
-		KETLIRScopedVariable* currentStack = wip->currentStack;
-		KETLIRScopedVariable* stackRoot = wip->stackRoot;
-
-		wip->tempVariables = NULL;
-		wip->localVariables = NULL;
-
 		KETLSyntaxNode* expressionNode = syntaxNode->firstChild;
 		if (expressionNode) {
+			KETLIRScopedVariable* currentStack = wip->currentStack;
+			KETLIRScopedVariable* stackRoot = wip->stackRoot;
+
+			wip->tempVariables = NULL;
+			wip->localVariables = NULL;
 
 			IROperationRange innerRange;
 			initInnerOperationRange(wip->builder, operationRange, &innerRange);
 			IRUndefinedDelegate* expression = buildIRCommandTree(wip, &innerRange, expressionNode);
+			deinitInnerOperationRange(wip->builder, operationRange, &innerRange);
 
-			KETLIROperation* assignOperation = createOperationFromRange(wip->builder, &innerRange);
-			assignOperation->code = KETL_IR_CODE_ASSIGN_8_BYTES; // TODO deside from type
-			assignOperation->argumentCount = 2;
-			assignOperation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 2);
-			assignOperation->arguments[0] = ketlGetFreeObjectFromPool(&wip->builder->argumentsPool);
-			assignOperation->arguments[0]->type = KETL_IR_ARGUMENT_TYPE_RETURN;
-			assignOperation->arguments[1] = &expression->caller->variable->value; // TODO actual convertion from udelegate to correct type
+			KETLIROperation* assignOperation = createLastOperationFromRange(wip->builder, operationRange);
+			assignOperation->code = KETL_IR_CODE_RETURN_8_BYTES; // TODO deside from type
+			assignOperation->argumentCount = 1;
+			assignOperation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 1);
+			assignOperation->arguments[0] = &expression->caller->variable->value; // TODO actual convertion from udelegate to correct type
 
 			operationRange->root = innerRange.next;
 
-			deinitInnerOperationRange(wip->builder, operationRange, &innerRange);
+			restoreLocalSopeContext(wip, currentStack, stackRoot);
 		}
-
-		KETLIROperation* operation = createLastOperationFromRange(wip->builder, operationRange);
-		operation->code = KETL_IR_CODE_RETURN;
-		operation->argumentCount = 0;
-
-		operation->mainNext = NULL;
-		operation->extraNext = NULL;
-
-		restoreLocalSopeContext(wip, currentStack, stackRoot);
+		else {
+			KETLIROperation* operation = createLastOperationFromRange(wip->builder, operationRange);
+			operation->code = KETL_IR_CODE_RETURN;
+			operation->argumentCount = 0;
+		}
 
 		break;
 	}
@@ -922,6 +936,21 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 
 		restoreLocalSopeContext(wip, currentStack, stackRoot);
 	}
+	}
+}
+
+static KETLIROperation* collectReturnOperations(KETLIROperation* rootOperation, KETLIRBuilder* irBuilder) {
+	KETL_FOREVER {
+		KETLIROperation* extraNext = rootOperation->extraNext;
+		if (extraNext != NULL) {
+			*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = extraNext;
+		}
+
+		KETLIROperation* nextOperation = rootOperation->mainNext;
+		if (nextOperation == NULL) {
+			return rootOperation;
+		}
+		rootOperation = nextOperation;
 	}
 }
 
@@ -941,19 +970,19 @@ static void countOperationsAndArguments(KETLIROperation* rootOperation, KETLIRBu
 		}
 		
 		KETLIROperation* extraNext = rootOperation->extraNext;
-		rootOperation = rootOperation->mainNext;
 		if (extraNext != NULL) {
 			*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = extraNext;
 		}
+		rootOperation = rootOperation->mainNext;
 	}
 }
 
-static inline uint64_t bakeStackUsage(KETLIRFunctionWIP* wip) {
+static inline uint64_t bakeStackUsage(KETLIRScopedVariable* stackRoot) {
 	// TODO align
 	uint64_t currentStackOffset = 0;
 	uint64_t maxStackOffset = 0;
 
-	KETLIRScopedVariable* it = wip->stackRoot;
+	KETLIRScopedVariable* it = stackRoot;
 	if (it == NULL) {
 		return maxStackOffset;
 	}
@@ -985,6 +1014,11 @@ static inline uint64_t bakeStackUsage(KETLIRFunctionWIP* wip) {
 	}
 }
 
+KETL_DEFINE(ReturnNode) {
+	KETLIROperation* operation;
+	ReturnNode* next;
+};
+
 KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot) {
 	KETLIRFunctionWIP wip;
 
@@ -1011,8 +1045,103 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	KETLIROperation* rootOperation = createOperationImpl(irBuilder);
 	IROperationRange range;
 	range.root = rootOperation;
-	range.next = NULL;
+	range.next = createOperationImpl(irBuilder);
 	buildIRCommand(&wip, &range, syntaxNodeRoot);
+
+	if (range.root != NULL) {
+		KETLIROperation* operation = createLastOperationFromRange(irBuilder, &range);
+		operation->code = KETL_IR_CODE_RETURN;
+		operation->argumentCount = 0;
+	}
+	// range.next would be not used, 
+	// but we don't need to recycle it, 
+	// since the building cycle came to the end
+
+	if (returnType == NULL) {
+		// TODO auto determine returnType
+
+		KETLStack returnStack;
+		ketlInitStack(&returnStack, sizeof(KETLIROperation*), 16);
+
+		ketlResetStack(&irBuilder->extraNextStack);
+
+		*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = rootOperation;
+
+		while (!ketlIsStackEmpty(&irBuilder->extraNextStack)) {
+			KETLIROperation* itOperation = *(KETLIROperation**)ketlPeekStack(&irBuilder->extraNextStack);
+			ketlPopStack(&irBuilder->extraNextStack);
+
+			*(KETLIROperation**)ketlPushOnStack(&returnStack) = collectReturnOperations(itOperation, irBuilder);
+		}
+
+		KETLStackIterator returnIterator;
+		ketlInitStackIterator(&returnIterator, &returnStack);
+
+		bool isProperReturnVoid = true;
+		bool isProperReturnValue = true;
+
+		while (!ketlIsStackEmpty(&returnStack)) {
+			KETLIROperation* operation = *(KETLIROperation**)ketlPeekStack(&returnStack);
+
+			isProperReturnVoid &= operation->code == KETL_IR_CODE_RETURN;
+			isProperReturnValue &= operation->code != KETL_IR_CODE_RETURN;
+
+			ketlPopStack(&returnStack);
+		}
+
+		if (isProperReturnVoid && !isProperReturnValue) {
+			// TODO set as void
+		}
+		else {
+			// TODO check the common conversion and convert
+		}
+
+		ketlDeinitStack(&returnStack);
+	}
+	else {
+
+		KETLStack returnStack;
+		ketlInitStack(&returnStack, sizeof(KETLIROperation*), 16);
+
+		ketlResetStack(&irBuilder->extraNextStack);
+
+		*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = rootOperation;
+
+		while (!ketlIsStackEmpty(&irBuilder->extraNextStack)) {
+			KETLIROperation* itOperation = *(KETLIROperation**)ketlPeekStack(&irBuilder->extraNextStack);
+			ketlPopStack(&irBuilder->extraNextStack);
+
+			*(KETLIROperation**)ketlPushOnStack(&returnStack) = collectReturnOperations(itOperation, irBuilder);
+		}
+
+		if (returnType == irBuilder->state->primitives.void_t) {
+			while (!ketlIsStackEmpty(&returnStack)) {
+				KETLIROperation* operation = *(KETLIROperation**)ketlPeekStack(&returnStack);
+
+				if (operation->code != KETL_IR_CODE_RETURN) {
+					// TODO error
+					return NULL;
+				}
+
+				ketlPopStack(&returnStack);
+			}
+		}
+		else {
+			while (!ketlIsStackEmpty(&returnStack)) {
+				KETLIROperation* operation = *(KETLIROperation**)ketlPeekStack(&returnStack);
+
+				// TODO properly check that all exit point has correct return
+				if (operation->code == KETL_IR_CODE_RETURN) {
+					// TODO error
+					return NULL;
+				}
+
+				ketlPopStack(&returnStack);
+			}
+		}
+
+		ketlDeinitStack(&returnStack);
+	}
 
 	ketlIntMapReset(&irBuilder->operationReferMap);
 	ketlIntMapReset(&irBuilder->argumentsMap);
@@ -1029,7 +1158,7 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	uint64_t operationCount = ketlIntMapGetSize(&irBuilder->operationReferMap);
 	uint64_t argumentsCount = ketlIntMapGetSize(&irBuilder->argumentsMap);
 
-	uint64_t maxStackOffset = bakeStackUsage(&wip);
+	uint64_t maxStackOffset = bakeStackUsage(wip.stackRoot);
 
 	KETLIRFunctionDefinition functionDefinition;
 

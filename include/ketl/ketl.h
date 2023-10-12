@@ -54,6 +54,7 @@ KETL_DEFINE(KETLState) {
 	KETLIRCompiler irCompiler;
 	KETLNamespace globalNamespace;
 	struct {
+		KETLType* void_t;
 		KETLType* bool_t;
 		KETLType* i8_t;
 		KETLType* i16_t;

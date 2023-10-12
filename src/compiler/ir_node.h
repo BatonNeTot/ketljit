@@ -6,7 +6,7 @@
 
 typedef uint8_t KETLIRArgumentType;
 
-#define KETL_IR_ARGUMENT_TYPE_RETURN 0
+#define KETL_IR_ARGUMENT_TYPE_NONE 0
 #define KETL_IR_ARGUMENT_TYPE_STACK 1
 #define KETL_IR_ARGUMENT_TYPE_POINTER 2
 
@@ -139,6 +139,7 @@ typedef uint8_t KETLIROperationCode;
 #define KETL_IR_CODE_JUMP_IF_FALSE 70
 
 #define KETL_IR_CODE_RETURN 71
+#define KETL_IR_CODE_RETURN_8_BYTES 72
 
 KETL_DEFINE(KETLIROperation) {
 	KETLIROperationCode code;

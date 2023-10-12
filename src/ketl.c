@@ -153,6 +153,7 @@ void ketlInitState(KETLState* state) {
 	ketlInitObjectPool(&state->undefVarPool, sizeof(IRUndefinedValue), 16);
 	ketlInitObjectPool(&state->variablesPool, sizeof(KETLIRVariable), 16);
 
+	state->primitives.void_t = createPrimitive(state, "void", 0);
 	state->primitives.bool_t = createPrimitive(state, "bool", sizeof(bool));
 	state->primitives.i8_t = createPrimitive(state, "i8", sizeof(int8_t));
 	state->primitives.i16_t = createPrimitive(state, "i16", sizeof(int16_t));
