@@ -1042,15 +1042,16 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 
 	wip.scopeIndex = 1;
 
+	KETLIRVariable* parameter = NULL;
 	if (argumentType && argumentName) {
-		KETLIRVariable* argument = ketlGetFreeObjectFromPool(&irBuilder->variablesPool);
-		argument->value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
-		argument->value.stack = 0;
+		parameter = ketlGetFreeObjectFromPool(&irBuilder->variablesPool);
+		parameter->value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
+		parameter->value.stack = 0;
 
-		argument->traits.isConst = false;
-		argument->traits.isNullable = false;
-		argument->traits.type = KETL_TRAIT_TYPE_LVALUE;
-		argument->type = argumentType;
+		parameter->traits.isConst = false;
+		parameter->traits.isNullable = false;
+		parameter->traits.type = KETL_TRAIT_TYPE_LVALUE;
+		parameter->type = argumentType;
 
 		const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, argumentName, KETL_NULL_TERMINATED_LENGTH);
 
@@ -1067,7 +1068,7 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 				__debugbreak();
 			}
 		}
-		IRUndefinedValue* uvalue = wrapInUValueVariable(irBuilder, argument);
+		IRUndefinedValue* uvalue = wrapInUValueVariable(irBuilder, parameter);
 		uvalue->scopeIndex = scopeIndex;
 		uvalue->next = *pCurrent;
 		*pCurrent = uvalue;
@@ -1177,6 +1178,12 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	ketlIntMapReset(&irBuilder->operationReferMap);
 	ketlIntMapReset(&irBuilder->argumentsMap);
 	ketlResetStack(&irBuilder->extraNextStack);
+
+	if (parameter) {
+		uint64_t* newIndex;
+		ketlIntMapGetOrCreate(&irBuilder->argumentsMap, (KETLIntMapKey)&parameter->value, &newIndex);
+		*newIndex = 0;
+	}
 
 	*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = rootOperation;
 

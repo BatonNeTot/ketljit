@@ -148,15 +148,22 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
     uint8_t opcodesBuffer[4096];
     uint64_t length = 0;
 
+    KETLIROperation* itOperation = irFunction->operations;
 
     {
-        const uint8_t opcodesArray[] =
-        {
-            0x48, 0x89, 0x8c, 0x24, 0xff, 0xff, 0x00, 0x00,           // mov     QWORD PTR [rsp + 65535], rcx
-        };
-        memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
-        *(int32_t*)(opcodesBuffer + length + 4) = (int32_t)8; // + argumentStack
-        length += sizeof(opcodesArray);
+        KETLIRArgument* functionArgument = irFunction->arguments;
+        if (functionArgument) {
+            while (functionArgument != (void*)itOperation && functionArgument->type == KETL_IR_ARGUMENT_TYPE_ARGUMENT) {
+                const uint8_t opcodesArray[] =
+                {
+                    0x48, 0x89, 0x8c, 0x24, 0xff, 0xff, 0x00, 0x00,           // mov     QWORD PTR [rsp + 65535], rcx
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+                *(int32_t*)(opcodesBuffer + length + 4) = (int32_t)(8 + functionArgument->stack);
+                length += sizeof(opcodesArray);
+                ++functionArgument;
+            }
+        }
     }
     if (stackUsage > 0) {
         const uint8_t opcodesArray[] =
@@ -168,7 +175,6 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
         length += sizeof(opcodesArray);
     }
 
-    KETLIROperation* itOperation = irFunction->operations;
     for (uint64_t i = 0; i < irFunction->operationsCount; ++i) {
         {
             uint64_t* offset;
