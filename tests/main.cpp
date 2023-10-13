@@ -22,10 +22,7 @@ int main(int argc, char** argv) {
 #endif
 
 	auto source = R"(
-	if (test == 4) {
-		return;
-	}
-	test := 7;
+	test := a * 7;
 )";
 
 
@@ -35,14 +32,14 @@ int main(int argc, char** argv) {
 		int64_t testVariable = 4;
 		ketlState.defineVariable("test", testVariable);
 
-		KETL::Function function = ketlState.compile(source);
+		KETL::Function function = ketlState.compile(source, ketlState.i64(), "a");
 
-		function.call();
+		function(2);
 
 		std::cout << testVariable << std::endl;
 
 		testVariable = 5;
-		function.call();
+		function(10);
 
 		std::cout << testVariable << std::endl;
 	}

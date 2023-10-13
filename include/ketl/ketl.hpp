@@ -22,9 +22,10 @@ namespace KETL {
 			return result;
 		}
 
-		void call() {
-			using func_t = void(*)();
-			reinterpret_cast<func_t>(_functionImpl)();
+		int64_t operator()(int64_t argument) {
+			int64_t result;
+			ketlCallFunctionWithArgument(_functionImpl, &result, argument);
+			return result;
 		}
 
 		explicit operator bool() {
@@ -55,7 +56,15 @@ namespace KETL {
 		}
 
 		Function compile(const char* source) {
-			return ketlCompileFunction(&_stateImpl, source);
+			return ketlCompileFunction(&_stateImpl, source, nullptr, nullptr);
+		}
+
+		Function compile(const char* source, KETLType* argumentType, const char* argumentName) {
+			return ketlCompileFunction(&_stateImpl, source, argumentType, argumentName);
+		}
+
+		KETLType* i64() {
+			return _stateImpl.primitives.i64_t;
 		}
 
 	private:

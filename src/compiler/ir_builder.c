@@ -1019,7 +1019,7 @@ KETL_DEFINE(ReturnNode) {
 	ReturnNode* next;
 };
 
-KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot) {
+KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLType* argumentType, const char* argumentName) {
 	KETLIRFunctionWIP wip;
 
 	wip.builder = irBuilder;
@@ -1041,6 +1041,37 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	wip.currentStack = NULL;
 
 	wip.scopeIndex = 1;
+
+	if (argumentType && argumentName) {
+		KETLIRVariable* argument = ketlGetFreeObjectFromPool(&irBuilder->variablesPool);
+		argument->value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
+		argument->value.stack = 0;
+
+		argument->traits.isConst = false;
+		argument->traits.isNullable = false;
+		argument->traits.type = KETL_TRAIT_TYPE_LVALUE;
+		argument->type = argumentType;
+
+		const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, argumentName, KETL_NULL_TERMINATED_LENGTH);
+
+		uint64_t scopeIndex = 0;
+
+		IRUndefinedValue** pCurrent;
+		if (ketlIntMapGetOrCreate(&irBuilder->variablesMap, (KETLIntMapKey)name, &pCurrent)) {
+			*pCurrent = NULL;
+		}
+		else {
+			// TODO check if the type is function, then we can overload
+			if ((*pCurrent)->scopeIndex == scopeIndex) {
+				// TODO error
+				__debugbreak();
+			}
+		}
+		IRUndefinedValue* uvalue = wrapInUValueVariable(irBuilder, argument);
+		uvalue->scopeIndex = scopeIndex;
+		uvalue->next = *pCurrent;
+		*pCurrent = uvalue;
+	}
 
 	KETLIROperation* rootOperation = createOperationImpl(irBuilder);
 	IROperationRange range;

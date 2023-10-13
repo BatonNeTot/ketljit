@@ -8,6 +8,9 @@
 
 KETL_FORWARD(KETLFunction);
 
-void ketlCallFunction(KETLFunction* function, volatile void* returnPtr);
+void ketlCallFunction(KETLFunction* function, void* returnPtr);
+
+// TODO replace with vararg when introduce type
+void ketlCallFunctionWithArgument(KETLFunction* function, void* returnPtr, int64_t argument);
 
 #endif /*function_h*/

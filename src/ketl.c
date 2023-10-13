@@ -252,10 +252,10 @@ void ketlDefineVariable(KETLState* state, const char* name, KETLType* type, void
 	*ppUValue = uvalue;
 }
 
-KETLFunction* ketlCompileFunction(KETLState* state, const char* source) {
+KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLType* argumentType, const char* argumentName) {
 	KETLSyntaxNode* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
 
-	KETLIRFunction* irFunction = ketlBuildIR(NULL, &state->compiler.irBuilder, root);
+	KETLIRFunction* irFunction = ketlBuildIR(NULL, &state->compiler.irBuilder, root, argumentType, argumentName);
 
 	// TODO optimization on ir
 

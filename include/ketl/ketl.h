@@ -85,6 +85,6 @@ void ketlDeinitState(KETLState* state);
 
 void ketlDefineVariable(KETLState* state, const char* name, KETLType* type, void* pointer);
 
-KETLFunction* ketlCompileFunction(KETLState* state, const char* source);
+KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLType* argumentType, const char* argumentName);
 
 #endif /*ketl_h*/

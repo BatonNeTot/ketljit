@@ -30,7 +30,7 @@ static uint64_t loadIntLiteralIntoRcx(uint8_t* buffer, int64_t value) {
     return sizeof(opcodesArray);
 }
 
-static uint64_t loadArgumentIntoRax(uint8_t* buffer, KETLIRArgument* argument) {
+static uint64_t loadArgumentIntoRax(uint8_t* buffer, KETLIRArgument* argument, uint64_t stackUsage) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
@@ -39,6 +39,15 @@ static uint64_t loadArgumentIntoRax(uint8_t* buffer, KETLIRArgument* argument) {
         };
         memcpy(buffer, opcodesArray, sizeof(opcodesArray));
         *(int32_t*)(buffer + 4) = (int32_t)argument->stack;
+        return sizeof(opcodesArray);
+    }
+    case KETL_IR_ARGUMENT_TYPE_ARGUMENT: {
+        const uint8_t opcodesArray[] =
+        {
+             0x48, 0x8b, 0x84, 0x24, 0xff, 0xff, 0x00, 0x00,              // mov     rax, QWORD PTR [rsp + 65535] 
+        };
+        memcpy(buffer, opcodesArray, sizeof(opcodesArray));
+        *(int32_t*)(buffer + 4) = (int32_t)(stackUsage + 8 + argument->stack);
         return sizeof(opcodesArray);
     }
     case KETL_IR_ARGUMENT_TYPE_POINTER: {
@@ -139,6 +148,16 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
     uint8_t opcodesBuffer[4096];
     uint64_t length = 0;
 
+
+    {
+        const uint8_t opcodesArray[] =
+        {
+            0x48, 0x89, 0x8c, 0x24, 0xff, 0xff, 0x00, 0x00,           // mov     QWORD PTR [rsp + 65535], rcx
+        };
+        memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+        *(int32_t*)(opcodesBuffer + length + 4) = (int32_t)8; // + argumentStack
+        length += sizeof(opcodesArray);
+    }
     if (stackUsage > 0) {
         const uint8_t opcodesArray[] =
         {
@@ -159,7 +178,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
 
         switch (itOperation[i].code) {
         case KETL_IR_CODE_ADD_INT64: {
-            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
             length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2]);
             {
                 const uint8_t opcodesArray[] =
@@ -172,8 +191,22 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
             break;
         }
+        case KETL_IR_CODE_MULTY_INT64: {
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
+            length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2]);
+            {
+                const uint8_t opcodesArray[] =
+                {
+                    0x48, 0xf7, 0xe9,   // imul rcx // rdx:rax = rcx * rax                                   
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+                length += sizeof(opcodesArray);
+            }
+            length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
+            break;
+        }
         case KETL_IR_CODE_EQUAL_INT64: {
-            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
             length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2]);
             length += compareRaxAndRcx(opcodesBuffer + length);
             {
@@ -188,7 +221,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             break;
         }
         case KETL_IR_CODE_UNEQUAL_INT64: {
-            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
             length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2]);
             length += compareRaxAndRcx(opcodesBuffer + length);
             {
@@ -203,12 +236,12 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             break;
         }
         case KETL_IR_CODE_ASSIGN_8_BYTES: {
-            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1]);
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
             break;
         }
         case KETL_IR_CODE_JUMP_IF_FALSE: {
-            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[0]);
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[0], stackUsage);
             {
                 const uint8_t opcodesArray[] =
                 {
@@ -234,7 +267,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             break;
         }
         case KETL_IR_CODE_RETURN_8_BYTES: {
-            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[0]);
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[0], stackUsage);
         }
         case KETL_IR_CODE_RETURN: {
             if (stackUsage > 0) {
