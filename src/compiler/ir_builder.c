@@ -170,7 +170,7 @@ static inline KETLIRScopedVariable* createLocalVariable(KETLIRFunctionWIP* wip) 
 }
 
 KETL_DEFINE(Literal) {
-	KETLType* type;
+	KETLTypePtr type;
 	KETLIRArgument value;
 };
 
@@ -178,32 +178,32 @@ static inline Literal parseLiteral(KETLIRFunctionWIP* wip, const char* value, si
 	Literal literal;
 	int64_t intValue = ketlStrToI64(value, length);
 	if (INT8_MIN <= intValue && intValue <= INT8_MAX) {
-		literal.type = wip->builder->state->primitives.i8_t;
+		literal.type.primitive = &wip->builder->state->primitives.i8_t;
 		literal.value.int8 = (int8_t)intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT8;
 	}
 	else if (INT16_MIN <= intValue && intValue <= INT16_MAX) {
-		literal.type = wip->builder->state->primitives.i16_t;
+		literal.type.primitive = &wip->builder->state->primitives.i16_t;
 		literal.value.int16 = (int16_t)intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT16;
 	}
 	else if (INT32_MIN <= intValue && intValue <= INT32_MAX) {
-		literal.type = wip->builder->state->primitives.i32_t;
+		literal.type.primitive = &wip->builder->state->primitives.i32_t;
 		literal.value.int32 = (int32_t)intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT32;
 	}
 	else if (INT64_MIN <= intValue && intValue <= INT16_MAX) {
-		literal.type = wip->builder->state->primitives.i64_t;
+		literal.type.primitive = &wip->builder->state->primitives.i64_t;
 		literal.value.int64 = intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT64;
 	}
 	return literal;
 }
 
-static inline convertLiteralSize(KETLIRVariable* variable, KETLType* targetType) {
-	switch (variable->type->size) {
+static inline convertLiteralSize(KETLIRVariable* variable, KETLTypePtr targetType) {
+	switch (variable->type.primitive->size) {
 	case 1:
-		switch (targetType->size) {
+		switch (targetType.primitive->size) {
 		case 2: variable->value.uint16 = variable->value.uint8;
 			break;
 		case 4: variable->value.uint32 = variable->value.uint8;
@@ -213,7 +213,7 @@ static inline convertLiteralSize(KETLIRVariable* variable, KETLType* targetType)
 		}
 		break;
 	case 2:
-		switch (targetType->size) {
+		switch (targetType.primitive->size) {
 			// TODO warning
 		case 1: variable->value.uint8 = (uint8_t)variable->value.uint16;
 			break;
@@ -224,7 +224,7 @@ static inline convertLiteralSize(KETLIRVariable* variable, KETLType* targetType)
 		}
 		break;
 	case 4:
-		switch (targetType->size) {
+		switch (targetType.primitive->size) {
 			// TODO warning
 		case 1: variable->value.uint8 = (uint8_t)variable->value.uint32;
 			break;
@@ -236,7 +236,7 @@ static inline convertLiteralSize(KETLIRVariable* variable, KETLType* targetType)
 		}
 		break;
 	case 8:
-		switch (targetType->size) {
+		switch (targetType.primitive->size) {
 			// TODO warning
 		case 1: variable->value.uint8 = (uint8_t)variable->value.uint64;
 			break;
@@ -289,10 +289,10 @@ static TypeCastingTargetList possibleCastingForValue(KETLIRBuilder* irBuilder, K
 	TypeCastingTargetList targets;
 	targets.begin = targets.last = NULL;
 
-	bool numberLiteral = variable->traits.type == KETL_TRAIT_TYPE_LITERAL && variable->type->kind == KETL_TYPE_KIND_PRIMITIVE;
+	bool numberLiteral = variable->traits.type == KETL_TRAIT_TYPE_LITERAL && variable->type.base->kind == KETL_TYPE_KIND_PRIMITIVE;
 #define MAX_SIZE_OF_NUMBER_LITERAL 8
 
-	KETLCastOperator** castOperators = ketlIntMapGet(&irBuilder->state->castOperators, (KETLIntMapKey)variable->type);
+	KETLCastOperator** castOperators = ketlIntMapGet(&irBuilder->state->castOperators, (KETLIntMapKey)variable->type.base);
 	if (castOperators != NULL) {
 		KETLCastOperator* it = *castOperators;
 		for (; it; it = it->next) {
@@ -312,7 +312,7 @@ static TypeCastingTargetList possibleCastingForValue(KETLIRBuilder* irBuilder, K
 			newTarget->next = targets.begin;
 			targets.begin = newTarget;
 
-			newTarget->score = !numberLiteral || it->outputType->size != MAX_SIZE_OF_NUMBER_LITERAL;
+			newTarget->score = !numberLiteral || it->outputType.primitive->size != MAX_SIZE_OF_NUMBER_LITERAL;
 		}
 	}
 
@@ -326,7 +326,7 @@ static TypeCastingTargetList possibleCastingForValue(KETLIRBuilder* irBuilder, K
 	newTarget->next = targets.begin;
 	targets.begin = newTarget;
 
-	newTarget->score = numberLiteral && variable->type->size != MAX_SIZE_OF_NUMBER_LITERAL;
+	newTarget->score = numberLiteral && variable->type.primitive->size != MAX_SIZE_OF_NUMBER_LITERAL;
 
 	return targets;
 }
@@ -337,12 +337,12 @@ static CastingOption* possibleCastingForDelegate(KETLIRBuilder* irBuilder, IRUnd
 	IRUndefinedValue* callerIt = udelegate->caller;
 	for (; callerIt; callerIt = callerIt->next) {
 		KETLIRVariable* callerValue = callerIt->variable;
-		KETLType* callerType = callerValue->type;
+		KETLTypePtr callerType = callerValue->type;
 
 
 		KETLIRVariable* outputValue = callerValue;
 
-		if (callerType->kind == KETL_TYPE_KIND_FUNCTION) {
+		if (callerType.base->kind == KETL_TYPE_KIND_FUNCTION) {
 			__debugbreak();
 		}
 		else {
@@ -395,15 +395,15 @@ static BinaryOperatorDeduction deduceInstructionCode2(KETLIRBuilder* irBuilder, 
 		currentScore = 0;
 		CastingOption* lhsIt = lhsCasting;
 		for (; lhsIt; lhsIt = lhsIt->next) {
-			KETLType* lhsType = lhsIt->operator ? lhsIt->operator->outputType : lhsIt->variable->type;
-			if (it->lhsType != lhsType) {
+			KETLTypePtr lhsType = lhsIt->operator ? lhsIt->operator->outputType : lhsIt->variable->type;
+			if (it->lhsType.base != lhsType.base) {
 				continue;
 			}
 
 			CastingOption* rhsIt = rhsCasting;
 			for (; rhsIt; rhsIt = rhsIt->next) {
-				KETLType* rhsType = rhsIt->operator ? rhsIt->operator->outputType : rhsIt->variable->type;
-				if (it->rhsType != rhsType) {
+				KETLTypePtr rhsType = rhsIt->operator ? rhsIt->operator->outputType : rhsIt->variable->type;
+				if (it->rhsType.base != rhsType.base) {
 					continue;
 				}
 
@@ -426,13 +426,13 @@ static BinaryOperatorDeduction deduceInstructionCode2(KETLIRBuilder* irBuilder, 
 	return result;
 }
 
-static CastingOption* castDelegateToVariable(KETLIRBuilder* irBuilder, IRUndefinedDelegate* udelegate, KETLType* type) {
+static CastingOption* castDelegateToVariable(KETLIRBuilder* irBuilder, IRUndefinedDelegate* udelegate, KETLTypePtr type) {
 	CastingOption* options = possibleCastingForDelegate(irBuilder, udelegate);
 	CastingOption* it = options;
 
 	for (; it; it = it->next) {
-		KETLType* castingType = it->operator ? it->operator->outputType : it->variable->type;
-		if (castingType == type) {
+		KETLTypePtr castingType = it->operator ? it->operator->outputType : it->variable->type;
+		if (castingType.base == type.base) {
 			return it;
 		}
 	}
@@ -481,7 +481,7 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 	}
 	case KETL_SYNTAX_NODE_TYPE_NUMBER: {
 		Literal literal = parseLiteral(wip, it->value, it->length);
-		if (literal.type == NULL) {
+		if (literal.type.base == NULL) {
 			// TODO error
 			__debugbreak();
 		}
@@ -652,7 +652,7 @@ static inline void restoreScopeContext(KETLIRFunctionWIP* wip, KETLIRScopedVaria
 	}
 }
 
-static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* operationRange, KETLSyntaxNode* idNode, KETLType* type) {
+static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* operationRange, KETLSyntaxNode* idNode, KETLTypePtr type) {
 	if (KETL_CHECK_VOE(idNode->type == KETL_SYNTAX_NODE_TYPE_ID)) {
 		return;
 	}
@@ -698,7 +698,7 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 	CastingOption* expressionCasting;
 
 	ketlResetPool(&wip->builder->castingPool);
-	if (type == NULL) {
+	if (type.base == NULL) {
 		expressionCasting = getBestCastingOptionForDelegate(wip->builder, expression);
 	}
 	else {
@@ -774,7 +774,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 
 		KETLSyntaxNode* idNode = syntaxNode->firstChild;
 
-		createVariableDefinition(wip, operationRange, idNode, NULL);
+		createVariableDefinition(wip, operationRange, idNode, (KETLTypePtr){ NULL });
 
 		restoreLocalSopeContext(wip, currentStack, stackRoot);
 		break;
@@ -791,7 +791,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		KETLState* state = wip->builder->state;
 		const char* typeName = ketlAtomicStringsGet(&state->strings, typeNode->value, typeNode->length);
 
-		KETLType* type = ketlIntMapGet(&state->globalNamespace.types, (KETLIntMapKey)typeName);
+		KETLTypePtr type = { ketlIntMapGet(&state->globalNamespace.types, (KETLIntMapKey)typeName) };
 
 		KETLSyntaxNode* idNode = typeNode->nextSibling;
 
@@ -816,7 +816,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		KETLSyntaxNode* expressionNode = syntaxNode->firstChild;
 		IRUndefinedDelegate* expression = buildIRCommandTree(wip, &innerRange, expressionNode);
 
-		CastingOption* expressionCasting = castDelegateToVariable(wip->builder, expression, wip->builder->state->primitives.bool_t);
+		CastingOption* expressionCasting = castDelegateToVariable(wip->builder, expression, (KETLTypePtr){ (KETLTypeBase*)& wip->builder->state->primitives.bool_t });
 		if (expressionCasting == NULL) {
 			// TODO error
 			__debugbreak();
@@ -1019,7 +1019,7 @@ KETL_DEFINE(ReturnNode) {
 	ReturnNode* next;
 };
 
-KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLType* argumentType, const char* argumentName) {
+KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLTypePtr argumentType, const char* argumentName) {
 	KETLIRFunctionWIP wip;
 
 	wip.builder = irBuilder;
@@ -1043,7 +1043,7 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	wip.scopeIndex = 1;
 
 	KETLIRVariable* parameter = NULL;
-	if (argumentType && argumentName) {
+	if (argumentType.base && argumentName) {
 		parameter = ketlGetFreeObjectFromPool(&irBuilder->variablesPool);
 		parameter->value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
 		parameter->value.stack = 0;
@@ -1089,7 +1089,7 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 	// but we don't need to recycle it, 
 	// since the building cycle came to the end
 
-	if (returnType == NULL) {
+	if (returnType.base == NULL) {
 		// TODO auto determine returnType
 
 		KETLStack returnStack;
@@ -1146,7 +1146,7 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 			*(KETLIROperation**)ketlPushOnStack(&returnStack) = collectReturnOperations(itOperation, irBuilder);
 		}
 
-		if (returnType == irBuilder->state->primitives.void_t) {
+		if (returnType.primitive == &irBuilder->state->primitives.void_t) {
 			while (!ketlIsStackEmpty(&returnStack)) {
 				KETLIROperation* operation = *(KETLIROperation**)ketlPeekStack(&returnStack);
 
@@ -1249,7 +1249,7 @@ KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETL
 		ketlIntMapIteratorNext(&operationIterator);
 	}
 
-	functionDefinition.type = NULL;
+	functionDefinition.type.base = NULL;
 
 
 	return functionDefinition.function;

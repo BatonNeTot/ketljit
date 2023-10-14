@@ -2,22 +2,7 @@
 #ifndef type_h
 #define type_h
 
-#include "ketl/int_map.h"
 #include "ketl/utils.h"
-
-typedef uint8_t KETLTypeKind;
-
-#define KETL_TYPE_KIND_PRIMITIVE 0
-#define KETL_TYPE_KIND_STRUCT 1
-#define KETL_TYPE_KIND_CLASS 2
-#define KETL_TYPE_KIND_FUNCTION 3
-
-KETL_DEFINE(KETLType) {
-	KETLIntMap variables;
-	KETLTypeKind kind;
-	const char* name;
-	uint64_t size;
-};
 
 typedef uint8_t KETLTraitType;
 
@@ -33,12 +18,18 @@ KETL_DEFINE(KETLVariableTraits) {
 	bool isConst;
 };
 
-KETL_DEFINE(KETLTypeVariable) {
-	uint64_t offset;
-	KETLType* type;
-	KETLVariableTraits traits;
+KETL_FORWARD(KETLTypeBase);
+KETL_FORWARD(KETLTypePrimitive);
+KETL_FORWARD(KETLTypeFunction);
+
+KETL_DEFINE(KETLTypePtr) {
+	union {
+		KETLTypeBase* base;
+		KETLTypePrimitive* primitive;
+		KETLTypeFunction* function;
+	};
 };
 
-uint64_t getStackTypeSize(KETLVariableTraits traits, KETLType* type);
+uint64_t getStackTypeSize(KETLVariableTraits traits, KETLTypePtr type);
 
 #endif /*type_h*/

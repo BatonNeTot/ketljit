@@ -7,11 +7,9 @@
 #include "ketl/atomic_strings.h"
 #include "ketl/object_pool.h"
 #include "ketl/int_map.h"
-#include "type.h"
+#include "type_impl.h"
 #include "ketl/operators.h"
 #include "ketl/utils.h"
-
-KETL_FORWARD(KETLType);
 
 KETL_DEFINE(KETLNamespace) {
 	KETLIntMap variables;
@@ -23,8 +21,8 @@ KETL_DEFINE(KETLUnaryOperator) {
 	KETLIROperationCode code;
 	KETLVariableTraits inputTraits;
 	KETLVariableTraits outputTraits;
-	KETLType* inputType;
-	KETLType* outputType;
+	KETLTypePtr inputType;
+	KETLTypePtr outputType;
 	KETLUnaryOperator* next;
 };
 
@@ -33,9 +31,9 @@ KETL_DEFINE(KETLBinaryOperator) {
 	KETLVariableTraits lhsTraits;
 	KETLVariableTraits rhsTraits;
 	KETLVariableTraits outputTraits;
-	KETLType* lhsType;
-	KETLType* rhsType;
-	KETLType* outputType;
+	KETLTypePtr lhsType;
+	KETLTypePtr rhsType;
+	KETLTypePtr outputType;
 	KETLBinaryOperator* next;
 };
 
@@ -44,7 +42,7 @@ KETL_DEFINE(KETLCastOperator) {
 	bool implicit;
 	KETLVariableTraits inputTraits;
 	KETLVariableTraits outputTraits;
-	KETLType* outputType;
+	KETLTypePtr outputType;
 	KETLCastOperator* next;
 };
 
@@ -54,18 +52,18 @@ KETL_DEFINE(KETLState) {
 	KETLIRCompiler irCompiler;
 	KETLNamespace globalNamespace;
 	struct {
-		KETLType* void_t;
-		KETLType* bool_t;
-		KETLType* i8_t;
-		KETLType* i16_t;
-		KETLType* i32_t;
-		KETLType* i64_t;
-		KETLType* u8_t;
-		KETLType* u16_t;
-		KETLType* u32_t;
-		KETLType* u64_t;
-		KETLType* f32_t;
-		KETLType* f64_t;
+		KETLTypePrimitive void_t;
+		KETLTypePrimitive bool_t;
+		KETLTypePrimitive i8_t;
+		KETLTypePrimitive i16_t;
+		KETLTypePrimitive i32_t;
+		KETLTypePrimitive i64_t;
+		KETLTypePrimitive u8_t;
+		KETLTypePrimitive u16_t;
+		KETLTypePrimitive u32_t;
+		KETLTypePrimitive u64_t;
+		KETLTypePrimitive f32_t;
+		KETLTypePrimitive f64_t;
 	} primitives;
 
 	KETLObjectPool unaryOperatorsPool;
@@ -83,8 +81,8 @@ void ketlInitState(KETLState* state);
 
 void ketlDeinitState(KETLState* state);
 
-void ketlDefineVariable(KETLState* state, const char* name, KETLType* type, void* pointer);
+void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, void* pointer);
 
-KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLType* argumentType, const char* argumentName);
+KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLTypePtr argumentType, const char* argumentName);
 
 #endif /*ketl_h*/

@@ -16,7 +16,7 @@
 KETL_FORWARD(KETLState);
 
 KETL_DEFINE(KETLIRVariable) {
-	KETLType* type;
+	KETLTypePtr type;
 	KETLVariableTraits traits;
 	KETLIRArgument value;
 };
@@ -80,13 +80,13 @@ KETL_DEFINE(KETLIRFunctionWIP) {
 
 KETL_DEFINE(KETLIRFunctionDefinition) {
 	KETLIRFunction* function;
-	KETLType* type;
+	KETLTypePtr type;
 };
 
 void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state);
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
 
-KETLIRFunction* ketlBuildIR(KETLType* returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLType* argumentType, const char* argumentName);
+KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLTypePtr argumentType, const char* argumentName);
 
 #endif /*compiler_ir_builder_h*/

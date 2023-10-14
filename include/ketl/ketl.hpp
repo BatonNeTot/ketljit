@@ -52,19 +52,19 @@ namespace KETL {
 		}
 
 		void defineVariable(const char* name, int64_t& variable) {
-			ketlDefineVariable(&_stateImpl, name, _stateImpl.primitives.i64_t, &variable);
+			ketlDefineVariable(&_stateImpl, name, i64(), &variable);
 		}
 
 		Function compile(const char* source) {
-			return ketlCompileFunction(&_stateImpl, source, nullptr, nullptr);
+			return ketlCompileFunction(&_stateImpl, source, KETLTypePtr{ nullptr }, nullptr);
 		}
 
-		Function compile(const char* source, KETLType* argumentType, const char* argumentName) {
+		Function compile(const char* source, KETLTypePtr argumentType, const char* argumentName) {
 			return ketlCompileFunction(&_stateImpl, source, argumentType, argumentName);
 		}
 
-		KETLType* i64() {
-			return _stateImpl.primitives.i64_t;
+		KETLTypePtr i64() {
+			return KETLTypePtr{ reinterpret_cast<KETLTypeBase*>(& _stateImpl.primitives.i64_t) };
 		}
 
 	private:
