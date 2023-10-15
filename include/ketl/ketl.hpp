@@ -56,11 +56,11 @@ namespace KETL {
 		}
 
 		Function compile(const char* source) {
-			return ketlCompileFunction(&_stateImpl, source, KETLTypePtr{ nullptr }, nullptr);
+			return ketlCompileFunction(&_stateImpl, source, nullptr, 0);
 		}
 
-		Function compile(const char* source, KETLTypePtr argumentType, const char* argumentName) {
-			return ketlCompileFunction(&_stateImpl, source, argumentType, argumentName);
+		Function compile(const char* source, KETLParameter* parameters, uint64_t parametersCount) {
+			return ketlCompileFunction(&_stateImpl, source, parameters, parametersCount);
 		}
 
 		KETLTypePtr i64() {

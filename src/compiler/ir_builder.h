@@ -6,6 +6,7 @@
 
 #include "ketl/compiler/syntax_node.h"
 #include "ketl/type.h"
+#include "ketl/function.h"
 
 #include "ketl/object_pool.h"
 #include "ketl/int_map.h"
@@ -87,6 +88,6 @@ void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state);
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
 
-KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLTypePtr argumentType, const char* argumentName);
+KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount);
 
 #endif /*compiler_ir_builder_h*/

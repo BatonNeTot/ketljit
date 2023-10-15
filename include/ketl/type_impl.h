@@ -25,18 +25,18 @@ KETL_DEFINE(KETLTypePrimitive) {
 	uint32_t size;
 };
 
-KETL_DEFINE(KETLTypeMembers) {
+KETL_DEFINE(KETLTypeParameters) {
 	uint64_t offset;
 	KETLTypePtr type;
-	const char* name;
 	KETLVariableTraits traits;
 };
 
 KETL_DEFINE(KETLTypeFunction) {
 	const char* name;
 	KETLTypeKind kind;
-	uint32_t membersCount;
-	KETLTypeMembers* members;
+	uint32_t parametersCount;
+	KETLTypeParameters* parameters;
+
 };
 
 #endif /*type_impl_h*/

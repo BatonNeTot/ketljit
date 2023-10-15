@@ -25,14 +25,16 @@ int main(int argc, char** argv) {
 	test := a * 7;
 )";
 
-
 	for (uint64_t i = 0; i < 1; ++i) {
 		KETL::State ketlState;
 
 		int64_t testVariable = 4;
 		ketlState.defineVariable("test", testVariable);
 
-		KETL::Function function = ketlState.compile(source, ketlState.i64(), "a");
+		std::vector<KETLParameter> parameters = { 
+			{"a", ketlState.i64(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
+		};
+		KETL::Function function = ketlState.compile(source, parameters.data(), parameters.size());
 
 		function(2);
 

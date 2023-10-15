@@ -6,6 +6,79 @@
 #include "ketl/compiler/syntax_node.h"
 #include "ketl/type.h"
 
+#include <string.h>
+
+KETL_DEFINE(TypeFunctionSearchNodeByTraits) {
+	KETLTypeFunction* leaf;
+	KETLIntMap children;
+	bool initialized;
+};
+
+KETL_DEFINE(TypeFunctionSearchNode) {
+	TypeFunctionSearchNodeByTraits byTraits[KETL_VARIABLE_TRAIT_HASH_COUNT];
+};
+
+static void initTypeFunctionSearchNode(TypeFunctionSearchNode* node) {
+	for (int8_t i = 0u; i < KETL_VARIABLE_TRAIT_HASH_COUNT; ++i) {
+		node->byTraits[i].initialized = false;
+		node->byTraits[i].leaf = NULL;
+
+	}
+}
+
+static void deinitTypeFunctionSearchNode(TypeFunctionSearchNode* node) {
+	for (int8_t i = 0u; i < KETL_VARIABLE_TRAIT_HASH_COUNT; ++i) {
+		TypeFunctionSearchNodeByTraits* byTraits = &node->byTraits[i];
+		if (!byTraits->initialized) {
+			return;
+		}
+
+		KETLIntMapIterator childrenIterator;
+		ketlInitIntMapIterator(&childrenIterator, &byTraits->children);
+		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
+			KETLTypePtr type;
+			TypeFunctionSearchNode* child;
+			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&type.base), &child);
+
+			deinitTypeFunctionSearchNode(child);
+			ketlIntMapIteratorNext(&childrenIterator);
+		}
+	}
+}
+
+static KETLTypeFunction* getTypeFunction(KETLState* state, KETLIntMap* typeFunctionMap, KETLTypeParameters* parameters, uint64_t lastParameter, uint64_t currentParameter) {
+	TypeFunctionSearchNode* child;
+	if (ketlIntMapGetOrCreate(typeFunctionMap, (KETLIntMapKey)parameters[currentParameter].type.base, &child)) {
+		initTypeFunctionSearchNode(child);
+	}
+
+	TypeFunctionSearchNodeByTraits* byTraits = &child->byTraits[parameters[currentParameter].traits.hash];
+	if (currentParameter == lastParameter) {
+		if (byTraits->leaf != NULL) {
+			return byTraits->leaf;
+		}
+
+		KETLTypeFunction* function = ketlGetFreeObjectFromPool(&state->typeFunctionsPool);
+		function->kind = KETL_TYPE_KIND_FUNCTION;
+		function->name = NULL; // TODO construct name
+		function->parameters = ketlGetNFreeObjectsFromPool(&state->typeParametersPool, function->parametersCount = (uint32_t)(lastParameter + 1));
+		memcpy(function->parameters, parameters, sizeof(KETLTypeParameters) * function->parametersCount);
+		uint64_t offset = 0;
+		for (uint64_t i = 1u; i <= lastParameter; ++i) {
+			function->parameters[i].offset = offset;
+			offset += getStackTypeSize(function->parameters[i].traits, function->parameters[i].type);
+		}
+		return function;
+	}
+	else {
+		if (!byTraits->initialized) {
+			byTraits->initialized = true;
+			ketlInitIntMap(&byTraits->children, sizeof(TypeFunctionSearchNode), 16);
+		}
+		return getTypeFunction(state, &byTraits->children, parameters, lastParameter, currentParameter + 1);
+	}
+}
+
 static void initNamespace(KETLNamespace* namespace) {
 	//ketlInitIntMap(&namespace->types, sizeof(KETLType), 16);
 	ketlInitIntMap(&namespace->variables, sizeof(IRUndefinedValue*), 16);
@@ -114,14 +187,20 @@ static void registerPrimitiveCastOperator(KETLState* state, KETLTypePrimitive* s
 }
 
 void ketlDeinitState(KETLState* state) {
+	ketlDeinitIntMap(&state->typeFunctionSearchMap);
+	ketlDeinitObjectPool(&state->typeFunctionsPool);
+	ketlDeinitObjectPool(&state->typeParametersPool);
+
 	ketlDeinitObjectPool(&state->variablesPool);
 	ketlDeinitObjectPool(&state->undefVarPool);
+
 	ketlDeinitIntMap(&state->castOperators);
 	ketlDeinitIntMap(&state->binaryOperators);
 	ketlDeinitIntMap(&state->unaryOperators);
 	ketlDeinitObjectPool(&state->castOperatorsPool);
 	ketlDeinitObjectPool(&state->binaryOperatorsPool);
 	ketlDeinitObjectPool(&state->unaryOperatorsPool);
+
 	deinitNamespace(&state->globalNamespace);
 	ketlIRCompilerDeinit(&state->irCompiler);
 	ketlDeinitCompiler(&state->compiler);
@@ -143,6 +222,10 @@ void ketlInitState(KETLState* state) {
 
 	ketlInitObjectPool(&state->undefVarPool, sizeof(IRUndefinedValue), 16);
 	ketlInitObjectPool(&state->variablesPool, sizeof(KETLIRVariable), 16);
+
+	ketlInitObjectPool(&state->typeParametersPool, sizeof(KETLTypeParameters), 16);
+	ketlInitObjectPool(&state->typeFunctionsPool, sizeof(KETLTypeFunction), 16);
+	ketlInitIntMap(&state->typeFunctionSearchMap, sizeof(TypeFunctionSearchNode), 16);
 
 	createPrimitive(&state->primitives.void_t, ketlAtomicStringsGet(&state->strings, "void", KETL_NULL_TERMINATED_LENGTH), 0);
 	createPrimitive(&state->primitives.bool_t, ketlAtomicStringsGet(&state->strings, "bool", KETL_NULL_TERMINATED_LENGTH), sizeof(bool));
@@ -243,15 +326,21 @@ void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, vo
 	*ppUValue = uvalue;
 }
 
-KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLTypePtr argumentType, const char* argumentName) {
+KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount) {
 	KETLSyntaxNode* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
 
-	KETLIRFunction* irFunction = ketlBuildIR((KETLTypePtr){ NULL }, &state->compiler.irBuilder, root, argumentType, argumentName);
+	KETLIRFunction* irFunction = ketlBuildIR((KETLTypePtr){ NULL }, &state->compiler.irBuilder, root, parameters, parametersCount);
 
 	// TODO optimization on ir
 
 	KETLFunction* function = ketlCompileIR(&state->irCompiler, irFunction);
 	free(irFunction);
 	return function;
+}
+
+KETLTypePtr getFunctionType(KETLState* state, KETLTypeParameters* parameters, uint64_t parametersCount) {
+	KETLTypePtr result;
+	result.function = getTypeFunction(state, &state->typeFunctionSearchMap, parameters, parametersCount - 1, 0);
+	return result;
 }
 

@@ -2,13 +2,16 @@
 #ifndef ketl_h
 #define ketl_h
 
+#include "function.h"
+#include "type_impl.h"
+#include "ketl/operators.h"
+
 #include "compiler/ir_compiler.h"
 #include "compiler/compiler.h"
+
 #include "ketl/atomic_strings.h"
 #include "ketl/object_pool.h"
 #include "ketl/int_map.h"
-#include "type_impl.h"
-#include "ketl/operators.h"
 #include "ketl/utils.h"
 
 KETL_DEFINE(KETLNamespace) {
@@ -75,6 +78,10 @@ KETL_DEFINE(KETLState) {
 
 	KETLObjectPool undefVarPool;
 	KETLObjectPool variablesPool;
+
+	KETLObjectPool typeParametersPool;
+	KETLObjectPool typeFunctionsPool;
+	KETLIntMap typeFunctionSearchMap;
 };
 
 void ketlInitState(KETLState* state);
@@ -83,6 +90,8 @@ void ketlDeinitState(KETLState* state);
 
 void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, void* pointer);
 
-KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLTypePtr argumentType, const char* argumentName);
+KETLTypePtr getFunctionType(KETLState* state, KETLTypeParameters* parameters, uint64_t parametersCount);
+
+KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount);
 
 #endif /*ketl_h*/

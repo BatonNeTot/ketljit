@@ -13,10 +13,17 @@ typedef uint8_t KETLTraitType;
 #define KETL_TRAIT_TYPE_REF_IN 4
 
 KETL_DEFINE(KETLVariableTraits) {
-	KETLTraitType type;
-	bool isNullable;
-	bool isConst;
+	union {
+		struct {
+			bool isNullable : 1;
+			bool isConst : 1;
+			KETLTraitType type : 3;
+		};
+		uint8_t hash : 5;
+	};
 };
+
+#define KETL_VARIABLE_TRAIT_HASH_COUNT 20
 
 KETL_FORWARD(KETLTypeBase);
 KETL_FORWARD(KETLTypePrimitive);

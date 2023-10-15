@@ -1019,7 +1019,7 @@ KETL_DEFINE(ReturnNode) {
 	ReturnNode* next;
 };
 
-KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLTypePtr argumentType, const char* argumentName) {
+KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount) {
 	KETLIRFunctionWIP wip;
 
 	wip.builder = irBuilder;
@@ -1042,36 +1042,42 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 
 	wip.scopeIndex = 1;
 
-	KETLIRVariable* parameter = NULL;
-	if (argumentType.base && argumentName) {
-		parameter = ketlGetFreeObjectFromPool(&irBuilder->variablesPool);
-		parameter->value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
-		parameter->value.stack = 0;
+	KETLIRVariable** parameterArguments = NULL;
+	if (parameters && parametersCount) {
+		parameterArguments = malloc(sizeof(KETLIRVariable*) * parametersCount);
+		for (uint64_t i = 0u; i < parametersCount; ++i) {
+			KETLIRVariable parameter;
+			parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
+			parameter.value.stack = 0;
 
-		parameter->traits.isConst = false;
-		parameter->traits.isNullable = false;
-		parameter->traits.type = KETL_TRAIT_TYPE_LVALUE;
-		parameter->type = argumentType;
+			parameter.traits = parameters[i].traits;
+			parameter.type = parameters[i].type;
 
-		const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, argumentName, KETL_NULL_TERMINATED_LENGTH);
+			const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, parameters[i].name, KETL_NULL_TERMINATED_LENGTH);
 
-		uint64_t scopeIndex = 0;
+			uint64_t scopeIndex = 0;
 
-		IRUndefinedValue** pCurrent;
-		if (ketlIntMapGetOrCreate(&irBuilder->variablesMap, (KETLIntMapKey)name, &pCurrent)) {
-			*pCurrent = NULL;
-		}
-		else {
-			// TODO check if the type is function, then we can overload
-			if ((*pCurrent)->scopeIndex == scopeIndex) {
-				// TODO error
-				__debugbreak();
+			IRUndefinedValue** pCurrent;
+			if (ketlIntMapGetOrCreate(&irBuilder->variablesMap, (KETLIntMapKey)name, &pCurrent)) {
+				*pCurrent = NULL;
 			}
+			else {
+				// TODO check if the type is function, then we can overload
+				if ((*pCurrent)->scopeIndex == scopeIndex) {
+					// TODO error
+					__debugbreak();
+				}
+			}
+
+			KETLIRVariable* pParameter = ketlGetFreeObjectFromPool(&irBuilder->variablesPool);
+			*pParameter = parameter;
+			parameterArguments[i] = pParameter;
+
+			IRUndefinedValue* uvalue = wrapInUValueVariable(irBuilder, pParameter);
+			uvalue->scopeIndex = scopeIndex;
+			uvalue->next = *pCurrent;
+			*pCurrent = uvalue;
 		}
-		IRUndefinedValue* uvalue = wrapInUValueVariable(irBuilder, parameter);
-		uvalue->scopeIndex = scopeIndex;
-		uvalue->next = *pCurrent;
-		*pCurrent = uvalue;
 	}
 
 	KETLIROperation* rootOperation = createOperationImpl(irBuilder);
@@ -1179,10 +1185,13 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 	ketlIntMapReset(&irBuilder->argumentsMap);
 	ketlResetStack(&irBuilder->extraNextStack);
 
-	if (parameter) {
-		uint64_t* newIndex;
-		ketlIntMapGetOrCreate(&irBuilder->argumentsMap, (KETLIntMapKey)&parameter->value, &newIndex);
-		*newIndex = 0;
+	if (parameterArguments) {
+		for (uint64_t i = 0u; i < parametersCount; ++i) {
+			uint64_t* newIndex;
+			ketlIntMapGetOrCreate(&irBuilder->argumentsMap, (KETLIntMapKey)&parameterArguments[i]->value, &newIndex);
+			*newIndex = 0;
+		}
+		free(parameterArguments);
 	}
 
 	*(KETLIROperation**)ketlPushOnStack(&irBuilder->extraNextStack) = rootOperation;
@@ -1249,8 +1258,18 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 		ketlIntMapIteratorNext(&operationIterator);
 	}
 
-	functionDefinition.type.base = NULL;
-
+	++parametersCount;
+	KETLTypeParameters* typeParameters = malloc(sizeof(KETLTypeParameters) * parametersCount);
+	typeParameters[0].type = returnType;
+	typeParameters[0].traits.isNullable = false;
+	typeParameters[0].traits.isConst = false;
+	typeParameters[0].traits.type = KETL_TRAIT_TYPE_RVALUE;
+	for (uint64_t i = 1u; i < parametersCount; ++i) {
+		typeParameters[i].type = parameters[i - 1].type;
+		typeParameters[i].traits = parameters[i - 1].traits;
+	}
+	functionDefinition.type = getFunctionType(irBuilder->state, typeParameters, parametersCount);
+	free(typeParameters);
 
 	return functionDefinition.function;
 }
