@@ -16,16 +16,14 @@ namespace KETL {
 	class Function {
 	public:
 
-		int64_t operator()() {
-			int64_t result;
-			ketlCallFunction(_functionImpl, &result);
-			return result;
+		template <class R, class... Args>
+		R call(Args... args) {
+			return KETL_CALL_FUNCTION(_functionImpl, R(*)(Args...), args...);
 		}
 
-		int64_t operator()(int64_t argument) {
-			int64_t result;
-			ketlCallFunctionWithArgument(_functionImpl, &result, argument);
-			return result;
+		template <class... Args>
+		void callVoid(Args... args) {
+			KETL_CALL_FUNCTION(_functionImpl, void(*)(Args...), args...);
 		}
 
 		explicit operator bool() {

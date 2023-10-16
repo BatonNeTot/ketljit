@@ -17,11 +17,6 @@ KETL_DEFINE(KETLParameter) {
 	KETLVariableTraits traits;
 };
 
-void ketlCallFunction(KETLFunction* function, void* returnPtr);
-
-void ketlCallFunctionOfType(KETLState* state, KETLFunction* function, void* returnPtr, KETLTypePtr type, ...);
-
-// TODO replace with vararg when introduce type
-void ketlCallFunctionWithArgument(KETLFunction* function, void* returnPtr, int64_t argument);
+#define KETL_CALL_FUNCTION(function, cast, ...) (((cast)(function))(__VA_ARGS__))
 
 #endif /*function_h*/

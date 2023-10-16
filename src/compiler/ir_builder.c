@@ -1019,7 +1019,7 @@ KETL_DEFINE(ReturnNode) {
 	ReturnNode* next;
 };
 
-KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount) {
+KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount) {
 	KETLIRFunctionWIP wip;
 
 	wip.builder = irBuilder;
@@ -1045,13 +1045,16 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 	KETLIRVariable** parameterArguments = NULL;
 	if (parameters && parametersCount) {
 		parameterArguments = malloc(sizeof(KETLIRVariable*) * parametersCount);
+		uint64_t currentStackOffset = 0;
 		for (uint64_t i = 0u; i < parametersCount; ++i) {
 			KETLIRVariable parameter;
 			parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
-			parameter.value.stack = 0;
+			parameter.value.stack = currentStackOffset;
 
 			parameter.traits = parameters[i].traits;
 			parameter.type = parameters[i].type;
+
+			currentStackOffset += getStackTypeSize(parameter.traits, parameter.type);
 
 			const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, parameters[i].name, KETL_NULL_TERMINATED_LENGTH);
 
@@ -1094,6 +1097,10 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 	// range.next would be not used, 
 	// but we don't need to recycle it, 
 	// since the building cycle came to the end
+
+	KETLIRFunctionDefinition functionDefinition;
+	functionDefinition.function = NULL;
+	functionDefinition.type.base = NULL;
 
 	if (returnType.base == NULL) {
 		// TODO auto determine returnType
@@ -1158,7 +1165,7 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 
 				if (operation->code != KETL_IR_CODE_RETURN) {
 					// TODO error
-					return NULL;
+					return functionDefinition;
 				}
 
 				ketlPopStack(&returnStack);
@@ -1171,7 +1178,7 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 				// TODO properly check that all exit point has correct return
 				if (operation->code == KETL_IR_CODE_RETURN) {
 					// TODO error
-					return NULL;
+					return functionDefinition;
 				}
 
 				ketlPopStack(&returnStack);
@@ -1189,7 +1196,7 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 		for (uint64_t i = 0u; i < parametersCount; ++i) {
 			uint64_t* newIndex;
 			ketlIntMapGetOrCreate(&irBuilder->argumentsMap, (KETLIntMapKey)&parameterArguments[i]->value, &newIndex);
-			*newIndex = 0;
+			*newIndex = i;
 		}
 		free(parameterArguments);
 	}
@@ -1206,8 +1213,6 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 	uint64_t argumentsCount = ketlIntMapGetSize(&irBuilder->argumentsMap);
 
 	uint64_t maxStackOffset = bakeStackUsage(wip.stackRoot);
-
-	KETLIRFunctionDefinition functionDefinition;
 
 	// TODO align
 	uint64_t totalSize = sizeof(KETLIRFunction) + sizeof(KETLIRArgument) * argumentsCount + sizeof(KETLIROperation) * operationCount;
@@ -1271,5 +1276,5 @@ KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KE
 	functionDefinition.type = getFunctionType(irBuilder->state, typeParameters, parametersCount);
 	free(typeParameters);
 
-	return functionDefinition.function;
+	return functionDefinition;
 }

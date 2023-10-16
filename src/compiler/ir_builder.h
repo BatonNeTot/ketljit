@@ -88,6 +88,6 @@ void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state);
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
 
-KETLIRFunction* ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount);
+KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount);
 
 #endif /*compiler_ir_builder_h*/

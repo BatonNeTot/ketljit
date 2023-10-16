@@ -23,8 +23,6 @@ static auto registerTests = []() {
 			} else {
 				testValue := 2;
 			}
-
-			return 0;
 		)");
 
 		/* TODO 
@@ -38,7 +36,7 @@ static auto registerTests = []() {
 			auto start = std::chrono::high_resolution_clock::now();
 			for (auto i = 0; i < N; ++i) {
 				value = randValue();
-				command();
+				command.callVoid();
 			}
 			auto finish = std::chrono::high_resolution_clock::now();
 			ketlTime = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count() / 1000000.0;
@@ -55,8 +53,6 @@ static auto registerTests = []() {
 			else
 				testValue = 2
 			end
-
-			return 0
 		)");
 
 

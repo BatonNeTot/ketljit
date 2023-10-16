@@ -19,7 +19,7 @@ static auto registerTests = []() {
 			}
 
 			return 0;
-		)")();
+		)").call<int64_t>();
 
 		/* TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
@@ -46,7 +46,7 @@ static auto registerTests = []() {
 			}
 
 			return 0;
-		)")();
+		)").call<int64_t>();
 
 		/* TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
@@ -71,7 +71,7 @@ static auto registerTests = []() {
 			}
 
 			return 0;
-		)")();
+		)").call<int64_t>();
 
 		/* TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
@@ -96,7 +96,7 @@ static auto registerTests = []() {
 			}
 
 			return 0;
-		)")();
+		)").call<int64_t>();
 
 		/* TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
@@ -121,7 +121,7 @@ static auto registerTests = []() {
 			}
 
 			return 0;
-		)")();
+		)").call<int64_t>();
 
 		/* TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
@@ -148,7 +148,7 @@ static auto registerTests = []() {
 					sum := 4;
 
 			return 0;
-		)")();
+		)").call<int64_t>();
 
 		/* TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {

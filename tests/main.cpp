@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
 #endif
 
 	auto source = R"(
-	test := a * 7;
+	test := a * b;
 )";
 
 	for (uint64_t i = 0; i < 1; ++i) {
@@ -33,15 +33,16 @@ int main(int argc, char** argv) {
 
 		std::vector<KETLParameter> parameters = { 
 			{"a", ketlState.i64(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
+			{"b", ketlState.i64(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
 		};
 		KETL::Function function = ketlState.compile(source, parameters.data(), parameters.size());
 
-		function(2);
+		function.callVoid(2, 3);
 
 		std::cout << testVariable << std::endl;
 
 		testVariable = 5;
-		function(10);
+		function.callVoid(10, 4);
 
 		std::cout << testVariable << std::endl;
 	}
