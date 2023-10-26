@@ -61,6 +61,10 @@ namespace KETL {
 			return ketlCompileFunction(&_stateImpl, source, parameters, parametersCount);
 		}
 
+		KETLTypePtr i32() {
+			return KETLTypePtr{ reinterpret_cast<KETLTypeBase*>(&_stateImpl.primitives.i32_t) };
+		}
+
 		KETLTypePtr i64() {
 			return KETLTypePtr{ reinterpret_cast<KETLTypeBase*>(& _stateImpl.primitives.i64_t) };
 		}

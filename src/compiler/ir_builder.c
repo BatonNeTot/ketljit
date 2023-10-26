@@ -505,7 +505,8 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_PROD:
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_DIV:
 	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_EQUAL:
-	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_UNEQUAL: {
+	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_UNEQUAL:
+	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN: {
 		IROperationRange innerRange;
 		initInnerOperationRange(wip->builder, operationRange, &innerRange);
 		KETLIRScopedVariable* resultVariable = createTempVariable(wip);
@@ -543,33 +544,6 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 		operation->extraNext = NULL;
 
 		return wrapInDelegateValue(wip->builder, &resultVariable->variable);;
-	}
-	case KETL_SYNTAX_NODE_TYPE_OPERATOR_BI_ASSIGN: {
-		IROperationRange innerRange;
-		initInnerOperationRange(wip->builder, operationRange, &innerRange);
-
-		KETLSyntaxNode* lhsNode = it->firstChild;
-		IRUndefinedDelegate* lhs = buildIRCommandTree(wip, &innerRange, lhsNode);
-		KETLSyntaxNode* rhsNode = lhsNode->nextSibling;
-		IRUndefinedDelegate* rhs = buildIRCommandTree(wip, &innerRange, rhsNode);
-
-		deinitInnerOperationRange(wip->builder, operationRange, &innerRange);
-
-		KETLIROperation* operation = createOperationFromRange(wip->builder, operationRange);
-
-		operation->code = KETL_IR_CODE_ASSIGN_8_BYTES; // TODO choose from type
-		operation->argumentCount = 2;
-		operation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 2);
-		if (lhs) {
-			operation->arguments[0] = &lhs->caller->variable->value; // TODO actual convertion from udelegate to correct type
-		}
-		if (rhs) {
-			operation->arguments[1] = &rhs->caller->variable->value; // TODO actual convertion from udelegate to correct type
-		}
-
-		operation->extraNext = NULL;
-
-		return wrapInDelegateValue(wip->builder, lhs->caller->variable);
 	}
 	KETL_NODEFAULT();
 	__debugbreak();
@@ -733,7 +707,7 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 
 	KETLIROperation* operation = createOperationFromRange(wip->builder, operationRange);
 
-	operation->code = KETL_IR_CODE_ASSIGN_8_BYTES; // TODO choose from type
+	operation->code = KETL_IR_CODE_COPY_8_BYTES; // TODO choose from type
 	operation->argumentCount = 2;
 	operation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 2);
 	operation->arguments[0] = &variable->variable.value;
@@ -1063,13 +1037,31 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 		uint64_t currentStackOffset = 0;
 		for (uint64_t i = 0u; i < parametersCount; ++i) {
 			KETLIRVariable parameter;
-			parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT;
-			parameter.value.stack = currentStackOffset;
 
 			parameter.traits = parameters[i].traits;
 			parameter.type = parameters[i].type;
 
-			currentStackOffset += getStackTypeSize(parameter.traits, parameter.type);
+			uint64_t stackTypeSize = getStackTypeSize(parameter.traits, parameter.type);
+
+			switch (stackTypeSize) {
+			case 1:
+				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_1_BYTE;
+				break;
+			case 2:
+				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_2_BYTES;
+				break;
+			case 4:
+				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_4_BYTES;
+				break;
+			case 8:
+				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_8_BYTES;
+				break;
+			KETL_NODEFAULT()
+				__debugbreak();
+			}
+			parameter.value.stack = currentStackOffset;
+
+			currentStackOffset += stackTypeSize;
 
 			const char* name = ketlAtomicStringsGet(&irBuilder->state->strings, parameters[i].name, KETL_NULL_TERMINATED_LENGTH);
 

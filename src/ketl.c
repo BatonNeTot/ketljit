@@ -266,6 +266,8 @@ void ketlInitState(KETLState* state) {
 	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_UNEQUAL, KETL_IR_CODE_UNEQUAL_INT32, &state->primitives.i32_t);
 	registerPrimitiveComparisonOperator(state, KETL_OPERATOR_CODE_BI_UNEQUAL, KETL_IR_CODE_UNEQUAL_INT64, &state->primitives.i64_t);
 
+	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_ASSIGN, KETL_IR_CODE_ASSIGN_8_BYTES, &state->primitives.i64_t);
+
 	registerPrimitiveCastOperator(state, &state->primitives.i8_t, &state->primitives.i64_t, KETL_IR_CODE_CAST_INT8_INT64, true);
 	registerPrimitiveCastOperator(state, &state->primitives.i8_t, &state->primitives.i32_t, KETL_IR_CODE_CAST_INT8_INT32, true);
 	registerPrimitiveCastOperator(state, &state->primitives.i8_t, &state->primitives.i16_t, KETL_IR_CODE_CAST_INT8_INT16, true);
