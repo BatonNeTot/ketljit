@@ -77,6 +77,7 @@ KETL_DEFINE(KETLIRFunctionWIP) {
 	};
 
 	uint64_t scopeIndex;
+	bool buildFailed;
 };
 
 KETL_DEFINE(KETLIRFunctionDefinition) {

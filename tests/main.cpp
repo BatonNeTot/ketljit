@@ -36,6 +36,9 @@ int main(int argc, char** argv) {
 			{"b", ketlState.i64(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
 		};
 		KETL::Function function = ketlState.compile(source, parameters.data(), parameters.size());
+		if (!function) {
+			continue;
+		}
 
 		function.callVoid(2, 3);
 

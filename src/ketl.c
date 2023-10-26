@@ -328,8 +328,14 @@ void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, vo
 
 KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount) {
 	KETLSyntaxNode* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
+	if (!root) {
+		return NULL;
+	}
 
 	KETLIRFunctionDefinition irFunction = ketlBuildIR((KETLTypePtr){ NULL }, &state->compiler.irBuilder, root, parameters, parametersCount);
+	if (irFunction.function == NULL) {
+		return NULL;
+	}
 
 	// TODO optimization on ir
 
