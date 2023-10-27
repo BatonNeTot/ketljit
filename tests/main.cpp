@@ -22,7 +22,10 @@ int main(int argc, char** argv) {
 #endif
 
 	auto source = R"(
-	return test := a * b;
+	if (test == 4)
+		return 80;
+	else
+		return test;
 )";
 
 	for (uint64_t i = 0; i < 1; ++i) {

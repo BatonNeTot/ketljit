@@ -35,6 +35,19 @@ KETL_DEFINE(KETLIRScopedVariable) {
 	KETLIRScopedVariable* firstChild;
 };
 
+KETL_DEFINE(IRUndefinedDelegate) {
+	IRUndefinedValue* caller;
+	IRUndefinedValue* arguments;
+	IRUndefinedValue* next;
+};
+
+KETL_DEFINE(IRReturnNode) {
+	KETLIROperation* operation;
+	IRUndefinedDelegate* returnVariable;
+	KETLIRScopedVariable* tempVariable;
+	IRReturnNode* next;
+};
+
 KETL_DEFINE(KETLIRBuilder) {
 	KETLIntMap variablesMap;
 
@@ -52,6 +65,8 @@ KETL_DEFINE(KETLIRBuilder) {
 	KETLIntMap operationReferMap;
 	KETLIntMap argumentsMap;
 	KETLStack extraNextStack;
+
+	KETLObjectPool returnPool;
 
 	KETLState* state;
 };
@@ -77,6 +92,7 @@ KETL_DEFINE(KETLIRFunctionWIP) {
 	};
 
 	uint64_t scopeIndex;
+	IRReturnNode* returnOperations;
 	bool buildFailed;
 };
 
