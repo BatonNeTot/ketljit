@@ -575,6 +575,20 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
             break;
         }
+        case KETL_IR_CODE_SUB_INT64: {
+            length += loadArgumentIntoRcx(opcodesBuffer + length, itOperation[i].arguments[2], stackUsage);
+            length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
+            {
+                const uint8_t opcodesArray[] =
+                {
+                    0x48, 0x29, 0xc8,    // sub rax, rcx                                   
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+                length += sizeof(opcodesArray);
+            }
+            length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
+            break;
+        }
         case KETL_IR_CODE_MULTY_INT32: {
             length += loadArgumentIntoEcx(opcodesBuffer + length, itOperation[i].arguments[2], stackUsage);
             length += loadArgumentIntoEax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
@@ -637,6 +651,11 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[2], stackUsage);
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[1]);
             length += loadRaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
+            break;
+        }
+        case KETL_IR_CODE_COPY_4_BYTES: {
+            length += loadArgumentIntoEax(opcodesBuffer + length, itOperation[i].arguments[1], stackUsage);
+            length += loadEaxIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0]);
             break;
         }
         case KETL_IR_CODE_COPY_8_BYTES: {
@@ -726,7 +745,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
 
     const uint8_t* opcodes = opcodesBuffer;
 
-    /*
+    //*
     for (uint64_t i = 0; i < length; ++i) {
         printf("%.2X ", opcodes[i]);
     }

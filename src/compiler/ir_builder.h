@@ -61,6 +61,7 @@ KETL_DEFINE(KETLIRBuilder) {
 	KETLObjectPool argumentsPool;
 
 	KETLObjectPool castingPool;
+	KETLObjectPool castingReturnPool;
 
 	KETLIntMap operationReferMap;
 	KETLIntMap argumentsMap;

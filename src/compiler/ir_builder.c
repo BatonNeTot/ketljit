@@ -21,6 +21,13 @@ KETL_DEFINE(CastingOption) {
 	CastingOption* next;
 };
 
+KETL_DEFINE(ReturnCastingOption) {
+	KETLTypePtr type;
+	KETLVariableTraits traits;
+	uint64_t score;
+	ReturnCastingOption* next;
+};
+
 void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state) {
 	irBuilder->state = state;
 
@@ -34,6 +41,7 @@ void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state) {
 	ketlInitObjectPool(&irBuilder->argumentsPool, sizeof(KETLIRArgument), 16);
 
 	ketlInitObjectPool(&irBuilder->castingPool, sizeof(CastingOption), 16);
+	ketlInitObjectPool(&irBuilder->castingReturnPool, sizeof(ReturnCastingOption), 16);
 
 	ketlInitIntMap(&irBuilder->operationReferMap, sizeof(uint64_t), 16);
 	ketlInitIntMap(&irBuilder->argumentsMap, sizeof(uint64_t), 16);
@@ -49,6 +57,7 @@ void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder) {
 	ketlDeinitIntMap(&irBuilder->argumentsMap);
 	ketlDeinitIntMap(&irBuilder->operationReferMap);
 
+	ketlDeinitObjectPool(&irBuilder->castingReturnPool);
 	ketlDeinitObjectPool(&irBuilder->castingPool);
 
 	ketlDeinitObjectPool(&irBuilder->argumentsPool);
@@ -701,7 +710,23 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 
 	KETLIROperation* operation = createOperationFromRange(wip->builder, operationRange);
 
-	operation->code = KETL_IR_CODE_COPY_8_BYTES; // TODO choose from type
+	switch (getStackTypeSize(variable->variable.traits, variable->variable.type)) {
+	case 1:
+		operation->code = KETL_IR_CODE_COPY_1_BYTE;
+		break;
+	case 2:
+		operation->code = KETL_IR_CODE_COPY_2_BYTES;
+		break;
+	case 4:
+		operation->code = KETL_IR_CODE_COPY_4_BYTES;
+		break;
+	case 8:
+		operation->code = KETL_IR_CODE_COPY_8_BYTES;
+		break;
+	default:
+		__debugbreak();
+	}
+
 	operation->argumentCount = 2;
 	operation->arguments = ketlGetNFreeObjectsFromPool(&wip->builder->argumentPointersPool, 2);
 	operation->arguments[0] = &variable->variable.value;
@@ -773,7 +798,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		KETLState* state = wip->builder->state;
 		const char* typeName = ketlAtomicStringsGet(&state->strings, typeNode->value, typeNode->length);
 
-		KETLTypePtr type = { ketlIntMapGet(&state->globalNamespace.types, (KETLIntMapKey)typeName) };
+		KETLTypePtr type = *(KETLTypePtr*)ketlIntMapGet(&state->globalNamespace.types, (KETLIntMapKey)typeName);
 
 		KETLSyntaxNode* idNode = typeNode->nextSibling;
 
@@ -1121,25 +1146,143 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			returnType.primitive = &irBuilder->state->primitives.void_t;
 		}
 		else if (!isProperReturnVoid && isProperReturnValue) {
-			// TODO check the common conversion and convert
-			//__debugbreak();
+			ketlResetPool(&irBuilder->castingPool);
+			ketlResetPool(&irBuilder->castingReturnPool);
+
+			ReturnCastingOption* returnSet = NULL;
+
+			IRReturnNode* returnIt = wip.returnOperations;
+
+			{
+				CastingOption* possibleCastingSet = possibleCastingForDelegate(irBuilder, returnIt->returnVariable);
+
+				for (; possibleCastingSet; possibleCastingSet = possibleCastingSet->next) {
+					ReturnCastingOption* returnCasting = ketlGetFreeObjectFromPool(&irBuilder->castingReturnPool);
+
+					returnCasting->score = possibleCastingSet->score;
+					if (possibleCastingSet->operator) {
+						KETLCastOperator* castOperator = possibleCastingSet->operator;
+						returnCasting->type = castOperator->outputType;
+						returnCasting->traits = castOperator->outputTraits;
+					}
+					else {
+						KETLIRVariable* variable = possibleCastingSet->variable;
+						returnCasting->type = variable->type;
+						returnCasting->traits = variable->traits;
+					}
+					returnCasting->next = returnSet;
+					returnSet = returnCasting;
+				}
+			}
+
+			returnIt = returnIt->next;
+			for (; returnIt; returnIt = returnIt->next) {
+				ReturnCastingOption* returnSetOld = returnSet;
+				returnSet = NULL;
+
+				CastingOption* possibleCasting = possibleCastingForDelegate(irBuilder, returnIt->returnVariable);
+				for (; possibleCasting; possibleCasting = possibleCasting->next) {
+					KETLTypePtr castingType;
+					//KETLVariableTraits castingTraits;
+					if (possibleCasting->operator) {
+						KETLCastOperator* castOperator = possibleCasting->operator;
+						castingType = castOperator->outputType;
+						//castingTraits = castOperator->outputTraits;
+					}
+					else {
+						KETLIRVariable* variable = possibleCasting->variable;
+						castingType = variable->type;
+						//castingTraits = variable->traits;
+					}
+
+					ReturnCastingOption* returnOldPrev = NULL;
+					ReturnCastingOption* returnOldIt = returnSetOld;
+					while (returnOldIt) {
+						if (castingType.base == returnOldIt->type.base/* &&
+							castingTraits.hash == returnOldIt->traits.hash*/) {
+							
+							if (returnOldPrev) {
+								returnOldPrev->next = returnOldIt->next;
+							}
+
+							returnOldIt->score += possibleCasting->score;
+							returnOldIt->next = returnSet;
+							returnSet = returnOldIt;
+
+							break;
+						}
+
+						returnOldPrev = returnOldIt;
+						returnOldIt = returnOldIt->next;
+					}
+				}
+			}
+
+			KETLTypePtr winningType = { NULL };
+			uint64_t bestScore = UINT64_MAX;
+
+			for (; returnSet; returnSet = returnSet->next) {
+				if (returnSet->score < bestScore) {
+					winningType = returnSet->type;
+					bestScore = returnSet->score;
+				}
+				else if (returnSet->score == bestScore) {
+					winningType.base = NULL;
+				}
+			}
+			
+			// TODO check for NULL type;
+			returnType = winningType;
 		}
 		else {
 			// TODO log error
-			//__debugbreak();
+			__debugbreak();
 		}
 	}
 
 	// do last conversions
 	if (returnType.primitive != &irBuilder->state->primitives.void_t) {
-
 		for (IRReturnNode* returnIt = wip.returnOperations; returnIt; returnIt = returnIt->next) {
-			KETLIROperation* returnOperation = returnIt->operation;
+			ketlResetPool(&irBuilder->castingPool);
+			CastingOption* expressionCasting = castDelegateToVariable(irBuilder, returnIt->returnVariable, returnType);
 
-			returnOperation->arguments = ketlGetNFreeObjectsFromPool(&irBuilder->argumentPointersPool, 1);
-			returnOperation->arguments[0] = &returnIt->returnVariable->caller->variable->value; // TODO actual convertion from udelegate to correct type
+			if (expressionCasting == NULL) {
+				// TODO log error
+				wip.buildFailed = true;
+				continue;
+			}
+
+			IROperationRange innerRange;
+			innerRange.root = returnIt->operation;
+			innerRange.next = createOperationImpl(irBuilder);
+			convertValues(&wip, &innerRange, expressionCasting);
+
+			KETLIRVariable* expressionVarible = expressionCasting->variable;
+
+			KETLIROperation* operation = createLastOperationFromRange(irBuilder, &innerRange);
+
+			switch (getStackTypeSize(expressionVarible->traits, expressionVarible->type)) {
+			case 1:
+				operation->code = KETL_IR_CODE_RETURN_1_BYTE;
+				break;
+			case 2:
+				operation->code = KETL_IR_CODE_RETURN_2_BYTES;
+				break;
+			case 4:
+				operation->code = KETL_IR_CODE_RETURN_4_BYTES;
+				break;
+			case 8:
+				operation->code = KETL_IR_CODE_RETURN_8_BYTES;
+				break;
+			default:
+				__debugbreak();
+			}
+			operation->argumentCount = 1;
+			operation->arguments = ketlGetNFreeObjectsFromPool(&irBuilder->argumentPointersPool, 1);
+			operation->arguments[0] = &expressionVarible->value;
+
+			KETLIROperation* returnOperation = returnIt->operation;
 		}
-		//__debugbreak();
 	}
 
 	if (wip.buildFailed) {

@@ -14,18 +14,20 @@
 // TODO rethink getOrCreate in int map
 
 int main(int argc, char** argv) {
-	launchCheckTests();
+	//launchCheckTests();
 #ifdef NDEBUG
 	launchSpeedTests(10000000);
 #else
-	launchSpeedTests(10000);
+	//launchSpeedTests(10000);
 #endif
 
 	auto source = R"(
-	if (test == 4)
-		return 80;
-	else
+	if (test == 4) {
+		i32 tmp := 80;
+		return tmp;
+	} else {
 		return test;
+	}
 )";
 
 	for (uint64_t i = 0; i < 1; ++i) {
@@ -35,8 +37,8 @@ int main(int argc, char** argv) {
 		ketlState.defineVariable("test", testVariable);
 
 		std::vector<KETLParameter> parameters = { 
-			{"a", ketlState.i32(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
-			{"b", ketlState.i32(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
+			//{"a", ketlState.i32(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
+			//{"b", ketlState.i32(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
 		};
 		KETL::Function function = ketlState.compile(source, parameters.data(), parameters.size());
 		if (!function) {
