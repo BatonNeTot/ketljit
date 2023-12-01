@@ -26,6 +26,10 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}*/
+		if (compilationResult != 0) {
+			std::cerr << "Incorrect return value; 0 expected, got: " << compilationResult << std::endl;
+			return false;
+		}
 
 		return sum == 5;
 		});
@@ -53,6 +57,10 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}*/
+		if (compilationResult != 0) {
+			std::cerr << "Incorrect return value; 0 expected, got: " << compilationResult << std::endl;
+			return false;
+		}
 
 		return sum == 7;
 		});
@@ -78,6 +86,10 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}*/
+		if (compilationResult != 0) {
+			std::cerr << "Incorrect return value; 0 expected, got: " << compilationResult << std::endl;
+			return false;
+		}
 
 		return sum == 5;
 		});
@@ -103,6 +115,10 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}*/
+		if (compilationResult != 0) {
+			std::cerr << "Incorrect return value; 0 expected, got: " << compilationResult << std::endl;
+			return false;
+		}
 
 		return sum == 3;
 		});
@@ -128,6 +144,10 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}*/
+		if (compilationResult != 0) {
+			std::cerr << "Incorrect return value; 0 expected, got: " << compilationResult << std::endl;
+			return false;
+		}
 
 		return sum == 5;
 		});
@@ -155,6 +175,10 @@ static auto registerTests = []() {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
 		}*/
+		if (compilationResult != 0) {
+			std::cerr << "Incorrect return value; 0 expected, got: " << compilationResult << std::endl;
+			return false;
+		}
 
 		return sum == 4;
 		});
@@ -174,7 +198,7 @@ static auto registerTests = []() {
 			}
 		)");
 
-		/* TODO
+		/ * TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
@@ -183,7 +207,7 @@ static auto registerTests = []() {
 		return sum == 3;
 		});
 
-	/* TODO
+	/ * TODO
 	registerCheckTest("Simple while statement (no loop)", []() {
 		KETL::State state;
 
@@ -202,7 +226,7 @@ static auto registerTests = []() {
 			}
 		)");
 
-		/* TODO
+		/v* TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
@@ -211,7 +235,7 @@ static auto registerTests = []() {
 		return sum == 3 && test == 0;
 		});
 
-	/* TODO
+	/ * TODO
 	registerCheckTest("While else statement (else missed)", []() {
 		KETL::State state;
 
@@ -233,7 +257,7 @@ static auto registerTests = []() {
 			}
 		)");
 
-		/* TODO
+		/ * TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;
@@ -242,7 +266,7 @@ static auto registerTests = []() {
 		return sum == 3 && test == 1;
 		});
 
-	/* TODO
+	/ * TODO
 	registerCheckTest("While else statement (else called)", []() {
 		KETL::State state;
 
@@ -264,7 +288,7 @@ static auto registerTests = []() {
 			}
 		)");
 
-		/* TODO
+		/ * TODO
 		if (std::holds_alternative<std::string>(compilationResult)) {
 			std::cerr << std::get<std::string>(compilationResult) << std::endl;
 			return false;

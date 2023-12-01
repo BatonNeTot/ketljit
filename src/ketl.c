@@ -52,7 +52,7 @@ static KETLTypeFunction* getTypeFunction(KETLState* state, KETLIntMap* typeFunct
 		initTypeFunctionSearchNode(child);
 	}
 
-	TypeFunctionSearchNodeByTraits* byTraits = &child->byTraits[parameters[currentParameter].traits.hash];
+	TypeFunctionSearchNodeByTraits* byTraits = &child->byTraits[parameters[currentParameter].traits._.hash];
 	if (currentParameter == lastParameter) {
 		if (byTraits->leaf != NULL) {
 			return byTraits->leaf;
@@ -110,16 +110,16 @@ static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode o
 	KETLBinaryOperator operator;
 	KETLVariableTraits traits;
 
-	traits.type = KETL_TRAIT_TYPE_REF_IN;
-	traits.isNullable = false;
-	traits.isConst = true;
+	traits._._.type = KETL_TRAIT_TYPE_REF_IN;
+	traits._._.isNullable = false;
+	traits._._.isConst = true;
 
 	operator.code = operationCode;
 
 	operator.lhsTraits = traits;
 	operator.rhsTraits = traits;
 	operator.outputTraits = traits;
-	operator.outputTraits.type = KETL_TRAIT_TYPE_RVALUE;
+	operator.outputTraits._._.type = KETL_TRAIT_TYPE_RVALUE;
 
 	operator.lhsType.primitive = type;
 	operator.rhsType.primitive = type;
@@ -140,16 +140,16 @@ static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCo
 	KETLBinaryOperator operator;
 	KETLVariableTraits traits;
 
-	traits.type = KETL_TRAIT_TYPE_REF_IN;
-	traits.isNullable = false;
-	traits.isConst = true;
+	traits._._.type = KETL_TRAIT_TYPE_REF_IN;
+	traits._._.isNullable = false;
+	traits._._.isConst = true;
 
 	operator.code = operationCode;
 
 	operator.lhsTraits = traits;
 	operator.rhsTraits = traits;
 	operator.outputTraits = traits;
-	operator.outputTraits.type = KETL_TRAIT_TYPE_RVALUE;
+	operator.outputTraits._._.type = KETL_TRAIT_TYPE_RVALUE;
 
 	operator.lhsType.primitive = type;
 	operator.rhsType.primitive = type;
@@ -170,15 +170,15 @@ static void registerPrimitiveCastOperator(KETLState* state, KETLTypePrimitive* s
 	KETLCastOperator operator;
 	KETLVariableTraits traits;
 
-	traits.type = KETL_TRAIT_TYPE_REF_IN;
-	traits.isNullable = false;
-	traits.isConst = true;
+	traits._._.type = KETL_TRAIT_TYPE_REF_IN;
+	traits._._.isNullable = false;
+	traits._._.isConst = true;
 
 	operator.code = operationCode;
 
 	operator.inputTraits = traits;
 	operator.outputTraits = traits;
-	operator.outputTraits.type = KETL_TRAIT_TYPE_RVALUE;
+	operator.outputTraits._._.type = KETL_TRAIT_TYPE_RVALUE;
 
 	operator.outputType.primitive = targetType;
 	operator.implicit = implicit;
@@ -191,6 +191,11 @@ static void registerPrimitiveCastOperator(KETLState* state, KETLTypePrimitive* s
 }
 
 void ketlDeinitState(KETLState* state) {
+	{
+		// TODO deinit search nodes
+		(void)deinitTypeFunctionSearchNode;
+	}
+
 	ketlDeinitIntMap(&state->typeFunctionSearchMap);
 	ketlDeinitObjectPool(&state->typeFunctionsPool);
 	ketlDeinitObjectPool(&state->typeParametersPool);
@@ -314,9 +319,9 @@ void ketlInitState(KETLState* state) {
 void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, void* pointer) {
 	KETLIRVariable* variable = ketlGetFreeObjectFromPool(&state->variablesPool);
 	variable->type = type;
-	variable->traits.isConst = false;
-	variable->traits.isNullable = false;
-	variable->traits.type = KETL_TRAIT_TYPE_LVALUE;
+	variable->traits._._.isConst = false;
+	variable->traits._._.isNullable = false;
+	variable->traits._._.type = KETL_TRAIT_TYPE_LVALUE;
 	variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
 	variable->value.pointer = pointer;
 

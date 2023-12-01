@@ -85,12 +85,12 @@ KETL_DEFINE(KETLIRFunctionWIP) {
 		struct {
 			KETLIRScopedVariable* stackRoot;
 			KETLIRScopedVariable* currentStack;
-		};
+		} stack;
 		struct {
 			KETLIRScopedVariable* tempVariables;
 			KETLIRScopedVariable* localVariables;
-		};
-	};
+		} vars;
+	} _;
 
 	uint64_t scopeIndex;
 	IRReturnNode* returnOperations;

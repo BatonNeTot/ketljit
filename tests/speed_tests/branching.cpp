@@ -34,7 +34,7 @@ static auto registerTests = []() {
 		auto command = evaluationResult;
 		{
 			auto start = std::chrono::high_resolution_clock::now();
-			for (auto i = 0; i < N; ++i) {
+			for (auto i = 0u; i < N; ++i) {
 				value = randValue();
 				command.callVoid();
 			}
@@ -58,7 +58,7 @@ static auto registerTests = []() {
 
 		{
 			auto start = std::chrono::high_resolution_clock::now();
-			for (auto i = 0; i < N; ++i) {
+			for (auto i = 0u; i < N; ++i) {
 				lua_pushinteger(L, randValue());
 				lua_setglobal(L, "value");
 				lua_pushvalue(L, -1);

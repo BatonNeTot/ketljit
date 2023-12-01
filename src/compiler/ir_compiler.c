@@ -86,7 +86,7 @@ static uint64_t loadArgumentIntoEax(uint8_t* buffer, KETLIRArgument* argument, u
     case KETL_IR_ARGUMENT_TYPE_INT32:
         return loadIntLiteralIntoEax(buffer, argument->int32);
     }
-    __debugbreak();
+    KETL_DEBUGBREAK();
     return 0;
 }
 
@@ -128,7 +128,7 @@ static uint64_t loadArgumentIntoRax(uint8_t* buffer, KETLIRArgument* argument, u
     case KETL_IR_ARGUMENT_TYPE_INT64:
         return loadIntLiteralIntoRax(buffer, argument->int64);
     }
-    __debugbreak();
+    KETL_DEBUGBREAK();
     return 0;
 }
 
@@ -169,7 +169,7 @@ static uint64_t loadArgumentIntoEcx(uint8_t* buffer, KETLIRArgument* argument, u
     case KETL_IR_ARGUMENT_TYPE_INT32:
         return loadIntLiteralIntoEcx(buffer, argument->int32);
     }
-    __debugbreak();
+    KETL_DEBUGBREAK();
     return 0;
 }
 
@@ -212,7 +212,7 @@ static uint64_t loadArgumentIntoRcx(uint8_t* buffer, KETLIRArgument* argument, u
     case KETL_IR_ARGUMENT_TYPE_INT64:
         return loadIntLiteralIntoRcx(buffer, argument->int64);
     }
-    __debugbreak();
+    KETL_DEBUGBREAK();
     return 0;
 }
 
@@ -237,7 +237,7 @@ static uint64_t loadEaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
         return sizeof(opcodesArray);
     }
     }
-    __debugbreak();
+    KETL_DEBUGBREAK();
     return 0;
 }
 
@@ -262,7 +262,7 @@ static uint64_t loadRaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
         return sizeof(opcodesArray);
     }
     }
-    __debugbreak();
+    KETL_DEBUGBREAK();
     return 0;
 }
 
@@ -691,6 +691,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
         }
         case KETL_IR_CODE_RETURN_8_BYTES: {
             length += loadArgumentIntoRax(opcodesBuffer + length, itOperation[i].arguments[0], stackUsage);
+            __attribute__ ((fallthrough));
         }
         case KETL_IR_CODE_RETURN: {
             if (stackUsage > 0) {
@@ -713,7 +714,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             break;
         }
         default:
-            __debugbreak();
+            KETL_DEBUGBREAK();
         }
 
         KETLIROperation* mainNext = itOperation[i].mainNext;
@@ -745,7 +746,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
 
     const uint8_t* opcodes = opcodesBuffer;
 
-    //*
+    /*
     for (uint64_t i = 0; i < length; ++i) {
         printf("%.2X ", opcodes[i]);
     }

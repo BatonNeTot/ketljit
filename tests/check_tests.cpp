@@ -29,8 +29,10 @@ void launchCheckTests() {
 
 	std::cout << "Tests passed: " << passed << "/" << getTests().size() << std::endl;
 
+#if KETL_OS_WINDOWS
 	if (!_CrtCheckMemory()) {
 		std::cerr << "Memory corrupted!" << std::endl;
 		__debugbreak();
 	}
+#endif
 }
