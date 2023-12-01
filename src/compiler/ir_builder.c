@@ -481,9 +481,7 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 		if (ppValue == NULL) {
 			ppValue = ketlIntMapGet(&wip->builder->state->globalNamespace.variables, (KETLIntMapKey)uniqName);
 		}
-		if (ppValue == NULL) {
-			// TODO log error
-			KETL_DEBUGBREAK();
+		if (KETL_CHECK_VOEM(ppValue != NULL, "Unknown valraible '%s'", uniqName)) {
 			wip->buildFailed = true;
 			return NULL;
 		}
@@ -492,9 +490,7 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 	}
 	case KETL_SYNTAX_NODE_TYPE_NUMBER: {
 		Literal literal = parseLiteral(wip, it->value, it->length);
-		if (literal.type.base == NULL) {
-			// TODO log error
-			KETL_DEBUGBREAK();
+		if (KETL_CHECK_VOEM(literal.type.base != NULL, "Can't parse literal '%.*s'", it->value, it->length)) {
 			wip->buildFailed = true;
 			return NULL;
 		}
@@ -525,9 +521,7 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 
 		ketlResetPool(&wip->builder->castingPool);
 		BinaryOperatorDeduction deductionStruct = deduceInstructionCode2(wip->builder, it->type, lhs, rhs);
-		if (deductionStruct.operator == NULL) {
-			// TODO log error
-			KETL_DEBUGBREAK();
+		if (KETL_CHECK_VOEM(deductionStruct.operator != NULL, "Can't deduce operator call", 0)) {
 			wip->buildFailed = true;
 			return NULL;
 		}
@@ -669,9 +663,7 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 	}
 	else {
 		// TODO check if the type is function, then we can overload
-		if ((*pCurrent)->scopeIndex == scopeIndex) {
-			// TODO log error
-			KETL_DEBUGBREAK();
+		if (KETL_CHECK_VOEM((*pCurrent)->scopeIndex != scopeIndex, "Variable redefinition: '%s'", name)) {
 			wip->buildFailed = true;
 			return;
 		}
@@ -682,10 +674,8 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 	*pCurrent = uvalue;
 
 	if (expression == NULL) {
-		// TODO log error
+		// TODO default initialization
 		KETL_DEBUGBREAK();
-		wip->buildFailed = true;
-		return;
 	}
 
 	// TODO set traits properly from syntax node
@@ -701,13 +691,11 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 	}
 	else {
 		expressionCasting = castDelegateToVariable(wip->builder, expression, type);
-	}
 
-	if (expressionCasting == NULL) {
-		// TODO log error
-		KETL_DEBUGBREAK();
-		wip->buildFailed = true;
-		return;
+		if (KETL_CHECK_VOEM(expressionCasting != NULL, "Can't cast expression to type '%s'", type.base->name)) {
+			wip->buildFailed = true;
+			return;
+		}
 	}
 
 	convertValues(wip, &innerRange, expressionCasting);
@@ -834,10 +822,12 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 
 		// TODO find more clever way to have typePtr literals or at least make inline function
 		CastingOption* expressionCasting = castDelegateToVariable(wip->builder, expression, (KETLTypePtr){{ (KETLTypeBase*)& wip->builder->state->primitives.bool_t }});
-		if (expressionCasting == NULL) {
-			// TODO log error
-			KETL_DEBUGBREAK();
+		
+		if (KETL_CHECK_VOEM(expressionCasting != NULL, "Can't cast expression to type '%s'", wip->builder->state->primitives.bool_t.name)) {
 			wip->buildFailed = true;
+			restoreLocalScopeContext(wip, currentStack, stackRoot);
+			restoreScopeContext(wip, savedStack, scopeIndex);
+			return;
 		}
 		convertValues(wip, &innerRange, expressionCasting);
 
@@ -1096,9 +1086,7 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			}
 			else {
 				// TODO check if the type is function, then we can overload
-				if ((*pCurrent)->scopeIndex == scopeIndex) {
-					// TODO log error
-					KETL_DEBUGBREAK();
+				if (KETL_CHECK_VOEM((*pCurrent)->scopeIndex != scopeIndex, "Variable redefinition: '%s'", name)) {
 					wip.buildFailed = true;
 					continue;
 				}
@@ -1142,8 +1130,6 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 	functionDefinition.type.base = NULL;
 
 	if (returnType.base == NULL) {
-		// TODO auto determine returnType
-		
 		bool isProperReturnVoid = true;
 		bool isProperReturnValue = true;
 
@@ -1250,8 +1236,8 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			returnType = winningType;
 		}
 		else {
-			// TODO log error
-			KETL_DEBUGBREAK();
+			KETL_ERROR("Not all return statements return value", 0);
+			// TODO proper log error
 		}
 	}
 
@@ -1261,9 +1247,7 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			ketlResetPool(&irBuilder->castingPool);
 			CastingOption* expressionCasting = castDelegateToVariable(irBuilder, returnIt->returnVariable, returnType);
 
-			if (expressionCasting == NULL) {
-				// TODO log error
-				KETL_DEBUGBREAK();
+			if (KETL_CHECK_VOEM(expressionCasting != NULL, "Can't cast expression to type '%s'", returnType.base->name)) {
 				wip.buildFailed = true;
 				continue;
 			}

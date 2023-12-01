@@ -16,7 +16,6 @@ file(GLOB_RECURSE PROJECT_HEADERS CONFIGURE_DEPENDS include/*.h include/*.hpp)
 
 add_library (${PROJECT_TARGET} STATIC ${PROJECT_SOURCES} ${PROJECT_HEADERS})
 set_property(TARGET ${PROJECT_TARGET} PROPERTY C_STANDARD 11)
-set_source_files_properties("NatvisFile.natvis" PROPERTIES HEADER_FILE_ONLY true)
 
 set_target_properties(${PROJECT_TARGET}
     PROPERTIES
