@@ -18,9 +18,9 @@ KETL_DEFINE(KETLVariableTraits) {
 			bool isNullable : 1;
 			bool isConst : 1;
 			KETLTraitType type : 3;
-		} _;
+		} values;
 		uint8_t hash : 5;
-	} _;
+	};
 };
 
 #define KETL_VARIABLE_TRAIT_HASH_COUNT 20

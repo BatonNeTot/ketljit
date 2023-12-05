@@ -143,7 +143,7 @@ static inline KETLIRScopedVariable* createTempVariable(KETLIRFunctionWIP* wip) {
 	stackValue->firstChild = NULL;
 	stackValue->nextSibling = NULL;
 
-	KETLIRScopedVariable* tempVariables = wip->_.vars.tempVariables;
+	KETLIRScopedVariable* tempVariables = wip->vars.tempVariables;
 	if (tempVariables != NULL) {
 		stackValue->parent = tempVariables;
 		tempVariables->firstChild = stackValue;
@@ -151,7 +151,7 @@ static inline KETLIRScopedVariable* createTempVariable(KETLIRFunctionWIP* wip) {
 	else {
 		stackValue->parent = NULL;
 	}
-	wip->_.vars.tempVariables = stackValue;
+	wip->vars.tempVariables = stackValue;
 	return stackValue;
 }
 
@@ -162,7 +162,7 @@ static inline KETLIRScopedVariable* createLocalVariable(KETLIRFunctionWIP* wip) 
 	stackValue->firstChild = NULL;
 	stackValue->nextSibling = NULL;
 
-	KETLIRScopedVariable* localVariables = wip->_.vars.localVariables;
+	KETLIRScopedVariable* localVariables = wip->vars.localVariables;
 	if (localVariables != NULL) {
 		stackValue->parent = localVariables;
 		localVariables->firstChild = stackValue;
@@ -170,7 +170,7 @@ static inline KETLIRScopedVariable* createLocalVariable(KETLIRFunctionWIP* wip) 
 	else {
 		stackValue->parent = NULL;
 	}
-	wip->_.vars.localVariables = stackValue;
+	wip->vars.localVariables = stackValue;
 	return stackValue;
 }
 
@@ -258,7 +258,7 @@ static inline void convertLiteralSize(KETLIRVariable* variable, KETLTypePtr targ
 }
 
 static void convertValues(KETLIRFunctionWIP* wip, IROperationRange* operationRange, CastingOption* castingOption) {
-	if (castingOption->variable->traits._._.type == KETL_TRAIT_TYPE_LITERAL) {
+	if (castingOption->variable->traits.values.type == KETL_TRAIT_TYPE_LITERAL) {
 		convertLiteralSize(castingOption->variable,
 			castingOption->operator ? castingOption->operator->outputType : castingOption->variable->type);
 	}
@@ -294,7 +294,7 @@ static TypeCastingTargetList possibleCastingForValue(KETLIRBuilder* irBuilder, K
 	TypeCastingTargetList targets;
 	targets.begin = targets.last = NULL;
 
-	bool numberLiteral = variable->traits._._.type == KETL_TRAIT_TYPE_LITERAL && variable->type.base->kind == KETL_TYPE_KIND_PRIMITIVE;
+	bool numberLiteral = variable->traits.values.type == KETL_TRAIT_TYPE_LITERAL && variable->type.base->kind == KETL_TYPE_KIND_PRIMITIVE;
 #define MAX_SIZE_OF_NUMBER_LITERAL 8
 
 	KETLCastOperator** castOperators = ketlIntMapGet(&irBuilder->state->castOperators, (KETLIntMapKey)variable->type.base);
@@ -481,7 +481,9 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 		if (ppValue == NULL) {
 			ppValue = ketlIntMapGet(&wip->builder->state->globalNamespace.variables, (KETLIntMapKey)uniqName);
 		}
-		if (KETL_CHECK_VOEM(ppValue != NULL, "Unknown valraible '%s'", uniqName)) {
+		if (ppValue == NULL) {
+			KETL_ERROR("Unknown variable '%s' at '%u:%u'", 
+				uniqName, it->lineInSource, it->columnInSource);
 			wip->buildFailed = true;
 			return NULL;
 		}
@@ -490,15 +492,17 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 	}
 	case KETL_SYNTAX_NODE_TYPE_NUMBER: {
 		Literal literal = parseLiteral(wip, it->value, it->length);
-		if (KETL_CHECK_VOEM(literal.type.base != NULL, "Can't parse literal '%.*s'", it->value, it->length)) {
+		if (literal.type.base == NULL) {
+			KETL_ERROR("Can't parse literal number '%.*s' at '%u:%u'", 
+				it->value, it->length, it->lineInSource, it->columnInSource);
 			wip->buildFailed = true;
 			return NULL;
 		}
 		KETLIRVariable* variable = ketlGetFreeObjectFromPool(&wip->builder->variablesPool);
 		variable->type = literal.type;
-		variable->traits._._.isNullable = false;
-		variable->traits._._.isConst = true;
-		variable->traits._._.type = KETL_TRAIT_TYPE_LITERAL;
+		variable->traits.values.isNullable = false;
+		variable->traits.values.isConst = true;
+		variable->traits.values.type = KETL_TRAIT_TYPE_LITERAL;
 		variable->value = literal.value;
 
 		return wrapInDelegateValue(wip->builder, variable);
@@ -521,7 +525,11 @@ static IRUndefinedDelegate* buildIRCommandTree(KETLIRFunctionWIP* wip, IROperati
 
 		ketlResetPool(&wip->builder->castingPool);
 		BinaryOperatorDeduction deductionStruct = deduceInstructionCode2(wip->builder, it->type, lhs, rhs);
-		if (KETL_CHECK_VOEM(deductionStruct.operator != NULL, "Can't deduce operator call", 0)) {
+		if (deductionStruct.operator == NULL) {
+			// TODO get operator symbols from type
+			const char* opSymbols = "opPlaceholder";
+			KETL_ERROR("Can't deduce operator call for '%s' at '%u:%u'",
+				opSymbols, it->lineInSource, it->columnInSource);
 			wip->buildFailed = true;
 			return NULL;
 		}
@@ -590,7 +598,7 @@ do {\
 static inline void restoreLocalScopeContext(KETLIRFunctionWIP* wip, KETLIRScopedVariable* currentStack, KETLIRScopedVariable* stackRoot) {
 	{
 		// set local variable
-		KETLIRScopedVariable* firstLocalVariable = wip->_.vars.localVariables;
+		KETLIRScopedVariable* firstLocalVariable = wip->vars.localVariables;
 		if (firstLocalVariable != NULL) {
 			// TODO remember, why this line was even here
 			//KETLIRScopedVariable* lastLocalVariables = firstLocalVariable;
@@ -601,19 +609,19 @@ static inline void restoreLocalScopeContext(KETLIRFunctionWIP* wip, KETLIRScoped
 
 	{
 		// set temp variable
-		KETLIRScopedVariable* firstTempVariable = wip->_.vars.tempVariables;
+		KETLIRScopedVariable* firstTempVariable = wip->vars.tempVariables;
 		if (firstTempVariable) {
 			UPDATE_NODE_TALE(firstTempVariable);
 		}
 	}
 
-	wip->_.stack.currentStack = currentStack;
-	wip->_.stack.stackRoot = stackRoot;
+	wip->stack.currentStack = currentStack;
+	wip->stack.stackRoot = stackRoot;
 }
 
 static inline void restoreScopeContext(KETLIRFunctionWIP* wip, KETLIRScopedVariable* savedStack, uint64_t scopeIndex) {
 	wip->scopeIndex = scopeIndex;
-	wip->_.stack.currentStack = savedStack;
+	wip->stack.currentStack = savedStack;
 
 	KETLIntMapIterator iterator;
 	ketlInitIntMapIterator(&iterator, &wip->builder->variablesMap);
@@ -663,7 +671,9 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 	}
 	else {
 		// TODO check if the type is function, then we can overload
-		if (KETL_CHECK_VOEM((*pCurrent)->scopeIndex != scopeIndex, "Variable redefinition: '%s'", name)) {
+		if ((*pCurrent)->scopeIndex == scopeIndex) {
+			KETL_ERROR("Variable redefinition '%s' at '%u:%u'", 
+				name, idNode->lineInSource, idNode->columnInSource);
 			wip->buildFailed = true;
 			return;
 		}
@@ -679,9 +689,9 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 	}
 
 	// TODO set traits properly from syntax node
-	variable->variable.traits._._.isConst = false;
-	variable->variable.traits._._.isNullable = false;
-	variable->variable.traits._._.type = KETL_TRAIT_TYPE_LVALUE;
+	variable->variable.traits.values.isConst = false;
+	variable->variable.traits.values.isNullable = false;
+	variable->variable.traits.values.type = KETL_TRAIT_TYPE_LVALUE;
 
 	CastingOption* expressionCasting;
 
@@ -692,7 +702,9 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, IROperationRange* o
 	else {
 		expressionCasting = castDelegateToVariable(wip->builder, expression, type);
 
-		if (KETL_CHECK_VOEM(expressionCasting != NULL, "Can't cast expression to type '%s'", type.base->name)) {
+		if (expressionCasting == NULL) {
+			KETL_ERROR("Can't cast expression to type '%s' at '%u:%u'", 
+				type.base->name, expressionNode->lineInSource, expressionNode->columnInSource);
 			wip->buildFailed = true;
 			return;
 		}
@@ -761,7 +773,7 @@ static void buildIRCommand(KETLIRFunctionWIP* wip, IROperationRange* operationRa
 static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange* operationRange, KETLSyntaxNode* syntaxNode) {
 	switch (syntaxNode->type) {
 	case KETL_SYNTAX_NODE_TYPE_BLOCK: {
-		KETLIRScopedVariable* savedStack = wip->_.stack.currentStack;
+		KETLIRScopedVariable* savedStack = wip->stack.currentStack;
 		uint64_t scopeIndex = wip->scopeIndex++;
 
 		buildIRCommand(wip, operationRange, syntaxNode->firstChild);
@@ -770,11 +782,11 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		break;
 	}
 	case KETL_SYNTAX_NODE_TYPE_DEFINE_VAR: {
-		KETLIRScopedVariable* currentStack = wip->_.stack.currentStack;
-		KETLIRScopedVariable* stackRoot = wip->_.stack.stackRoot;
+		KETLIRScopedVariable* currentStack = wip->stack.currentStack;
+		KETLIRScopedVariable* stackRoot = wip->stack.stackRoot;
 
-		wip->_.vars.tempVariables = NULL;
-		wip->_.vars.localVariables = NULL;
+		wip->vars.tempVariables = NULL;
+		wip->vars.localVariables = NULL;
 
 		KETLSyntaxNode* idNode = syntaxNode->firstChild;
 
@@ -784,11 +796,11 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		break;
 	}
 	case KETL_SYNTAX_NODE_TYPE_DEFINE_VAR_OF_TYPE: {
-		KETLIRScopedVariable* currentStack = wip->_.stack.currentStack;
-		KETLIRScopedVariable* stackRoot = wip->_.stack.stackRoot;
+		KETLIRScopedVariable* currentStack = wip->stack.currentStack;
+		KETLIRScopedVariable* stackRoot = wip->stack.stackRoot;
 
-		wip->_.vars.tempVariables = NULL;
-		wip->_.vars.localVariables = NULL;
+		wip->vars.tempVariables = NULL;
+		wip->vars.localVariables = NULL;
 
 		KETLSyntaxNode* typeNode = syntaxNode->firstChild;
 
@@ -805,14 +817,14 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		break;
 	}
 	case KETL_SYNTAX_NODE_TYPE_IF_ELSE: {
-		KETLIRScopedVariable* savedStack = wip->_.stack.currentStack;
+		KETLIRScopedVariable* savedStack = wip->stack.currentStack;
 		uint64_t scopeIndex = wip->scopeIndex++;
 
-		KETLIRScopedVariable* currentStack = wip->_.stack.currentStack;
-		KETLIRScopedVariable* stackRoot = wip->_.stack.stackRoot;
+		KETLIRScopedVariable* currentStack = wip->stack.currentStack;
+		KETLIRScopedVariable* stackRoot = wip->stack.stackRoot;
 
-		wip->_.vars.tempVariables = NULL;
-		wip->_.vars.localVariables = NULL;
+		wip->vars.tempVariables = NULL;
+		wip->vars.localVariables = NULL;
 
 		IROperationRange innerRange;
 		initInnerOperationRange(wip->builder, operationRange, &innerRange);
@@ -823,7 +835,9 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		// TODO find more clever way to have typePtr literals or at least make inline function
 		CastingOption* expressionCasting = castDelegateToVariable(wip->builder, expression, (KETLTypePtr){{ (KETLTypeBase*)& wip->builder->state->primitives.bool_t }});
 		
-		if (KETL_CHECK_VOEM(expressionCasting != NULL, "Can't cast expression to type '%s'", wip->builder->state->primitives.bool_t.name)) {
+		if (expressionCasting == NULL) {
+			KETL_ERROR("Can't cast expression to type '%s' at '%u:%u'", 
+				wip->builder->state->primitives.bool_t.name, expressionNode->lineInSource, expressionNode->columnInSource);
 			wip->buildFailed = true;
 			restoreLocalScopeContext(wip, currentStack, stackRoot);
 			restoreScopeContext(wip, savedStack, scopeIndex);
@@ -906,11 +920,11 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 	case KETL_SYNTAX_NODE_TYPE_RETURN: {
 		KETLSyntaxNode* expressionNode = syntaxNode->firstChild;
 		if (expressionNode) {
-			KETLIRScopedVariable* currentStack = wip->_.stack.currentStack;
-			KETLIRScopedVariable* stackRoot = wip->_.stack.stackRoot;
+			KETLIRScopedVariable* currentStack = wip->stack.currentStack;
+			KETLIRScopedVariable* stackRoot = wip->stack.stackRoot;
 
-			wip->_.vars.tempVariables = NULL;
-			wip->_.vars.localVariables = NULL;
+			wip->vars.tempVariables = NULL;
+			wip->vars.localVariables = NULL;
 
 			IROperationRange innerRange;
 			initInnerOperationRange(wip->builder, operationRange, &innerRange);
@@ -925,7 +939,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 			returnNode->next = wip->returnOperations;
 			returnNode->operation = returnOperation;
 			returnNode->returnVariable = expression;
-			returnNode->tempVariable = wip->_.vars.tempVariables;
+			returnNode->tempVariable = wip->vars.tempVariables;
 			wip->returnOperations = returnNode;
 
 			restoreLocalScopeContext(wip, currentStack, stackRoot);
@@ -946,11 +960,11 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, IROperationRange
 		break;
 	}
 	default: {
-		KETLIRScopedVariable* currentStack = wip->_.stack.currentStack;
-		KETLIRScopedVariable* stackRoot = wip->_.stack.stackRoot;
+		KETLIRScopedVariable* currentStack = wip->stack.currentStack;
+		KETLIRScopedVariable* stackRoot = wip->stack.stackRoot;
 
-		wip->_.vars.tempVariables = NULL;
-		wip->_.vars.localVariables = NULL;
+		wip->vars.tempVariables = NULL;
+		wip->vars.localVariables = NULL;
 
 		buildIRCommandTree(wip, operationRange, syntaxNode);
 
@@ -1038,8 +1052,8 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 	ketlIntMapReset(&irBuilder->operationReferMap);
 	ketlIntMapReset(&irBuilder->argumentsMap);
 
-	wip._.stack.stackRoot = NULL;
-	wip._.stack.currentStack = NULL;
+	wip.stack.stackRoot = NULL;
+	wip.stack.currentStack = NULL;
 
 	wip.returnOperations = NULL;
 	wip.scopeIndex = 1;
@@ -1086,7 +1100,8 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			}
 			else {
 				// TODO check if the type is function, then we can overload
-				if (KETL_CHECK_VOEM((*pCurrent)->scopeIndex != scopeIndex, "Variable redefinition: '%s'", name)) {
+				if ((*pCurrent)->scopeIndex == scopeIndex) {
+					KETL_ERROR("Parameter '%s' was already defined", name);
 					wip.buildFailed = true;
 					continue;
 				}
@@ -1233,6 +1248,9 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			}
 			
 			// TODO check for NULL type;
+			if (KETL_CHECK_VOEM(winningType.base != NULL, "Can't deduce return type", 0)) {
+				return functionDefinition;
+			}
 			returnType = winningType;
 		}
 		else {
@@ -1247,7 +1265,9 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			ketlResetPool(&irBuilder->castingPool);
 			CastingOption* expressionCasting = castDelegateToVariable(irBuilder, returnIt->returnVariable, returnType);
 
-			if (KETL_CHECK_VOEM(expressionCasting != NULL, "Can't cast expression to type '%s'", returnType.base->name)) {
+			if (expressionCasting == NULL) {
+				KETL_ERROR("Can't cast expression to type '%s'", 
+					returnType.base->name);
 				wip.buildFailed = true;
 				continue;
 			}
@@ -1314,7 +1334,7 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 	uint64_t operationCount = ketlIntMapGetSize(&irBuilder->operationReferMap);
 	uint64_t argumentsCount = ketlIntMapGetSize(&irBuilder->argumentsMap);
 
-	uint64_t maxStackOffset = bakeStackUsage(wip._.stack.stackRoot);
+	uint64_t maxStackOffset = bakeStackUsage(wip.stack.stackRoot);
 
 	// TODO align
 	uint64_t totalSize = sizeof(KETLIRFunction) + sizeof(KETLIRArgument) * argumentsCount + sizeof(KETLIROperation) * operationCount;
@@ -1368,9 +1388,9 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 	++parametersCount;
 	KETLTypeParameters* typeParameters = malloc(sizeof(KETLTypeParameters) * parametersCount);
 	typeParameters[0].type = returnType;
-	typeParameters[0].traits._._.isNullable = false;
-	typeParameters[0].traits._._.isConst = false;
-	typeParameters[0].traits._._.type = KETL_TRAIT_TYPE_RVALUE;
+	typeParameters[0].traits.values.isNullable = false;
+	typeParameters[0].traits.values.isConst = false;
+	typeParameters[0].traits.values.type = KETL_TRAIT_TYPE_RVALUE;
 	for (uint64_t i = 1u; i < parametersCount; ++i) {
 		typeParameters[i].type = parameters[i - 1].type;
 		typeParameters[i].traits = parameters[i - 1].traits;

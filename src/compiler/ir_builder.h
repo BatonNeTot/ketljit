@@ -90,7 +90,7 @@ KETL_DEFINE(KETLIRFunctionWIP) {
 			KETLIRScopedVariable* tempVariables;
 			KETLIRScopedVariable* localVariables;
 		} vars;
-	} _;
+	};
 
 	uint64_t scopeIndex;
 	IRReturnNode* returnOperations;
