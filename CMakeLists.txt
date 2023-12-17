@@ -33,6 +33,25 @@ target_include_directories(${PROJECT_TARGET} PRIVATE "src")
 
 ###############################
 
+set(PROJECT_EXE_TARGET "${PROJECT_TARGET}_exe")
+
+add_executable (${PROJECT_EXE_TARGET} "src/ketl.cpp")
+set_property(TARGET ${PROJECT_EXE_TARGET} PROPERTY CXX_STANDARD 20)
+
+set_property(TARGET ${PROJECT_EXE_TARGET} PROPERTY OUTPUT_NAME ketl)
+target_compile_definitions(${PROJECT_EXE_TARGET} PUBLIC KETL_LOG_BREAK_LEVEL=6)
+
+add_dependencies(${PROJECT_EXE_TARGET} ${PROJECT_TARGET})
+
+target_compile_definitions(${PROJECT_EXE_TARGET} PRIVATE _AMD64_)
+
+target_link_directories(${PROJECT_EXE_TARGET} PRIVATE "lib")
+target_link_libraries(${PROJECT_EXE_TARGET} ${PROJECT_TARGET} ${PROJECT_LIBRARIES})
+target_include_directories(${PROJECT_EXE_TARGET} PUBLIC "include")
+target_include_directories(${PROJECT_EXE_TARGET} PRIVATE "src")
+
+###############################
+
 set(PROJECT_TEST_TARGET "${PROJECT_TARGET}_test")
 
 add_subdirectory ("tests")

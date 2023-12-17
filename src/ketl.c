@@ -321,7 +321,7 @@ void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, vo
 	variable->type = type;
 	variable->traits.values.isConst = false;
 	variable->traits.values.isNullable = false;
-	variable->traits.values.type = KETL_TRAIT_TYPE_LVALUE;
+	variable->traits.values.type = KETL_TRAIT_TYPE_REF;
 	variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
 	variable->value.pointer = pointer;
 

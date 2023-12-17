@@ -53,12 +53,12 @@ namespace KETL {
 			ketlDefineVariable(&_stateImpl, name, i64(), &variable);
 		}
 
-		Function compile(const char* source) {
-			return ketlCompileFunction(&_stateImpl, source, nullptr, 0);
+		Function compile(const std::string &source) {
+			return ketlCompileFunction(&_stateImpl, source.c_str(), nullptr, 0);
 		}
 
-		Function compile(const char* source, KETLParameter* parameters, uint64_t parametersCount) {
-			return ketlCompileFunction(&_stateImpl, source, parameters, parametersCount);
+		Function compile(const std::string &source, KETLParameter* parameters, uint64_t parametersCount) {
+			return ketlCompileFunction(&_stateImpl, source.c_str(), parameters, parametersCount);
 		}
 
 		KETLTypePtr i32() {
