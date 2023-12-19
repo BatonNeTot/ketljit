@@ -88,7 +88,9 @@ void ketlInitState(KETLState* state);
 
 void ketlDeinitState(KETLState* state);
 
-void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, void* pointer);
+void ketl_state_define_external_variable(KETLState* state, const char* name, KETLTypePtr type, void* pointer);
+
+void* ketl_state_define_internal_variable(KETLState* state, const char* name, KETLTypePtr type);
 
 KETLTypePtr getFunctionType(KETLState* state, KETLTypeParameters* parameters, uint64_t parametersCount);
 

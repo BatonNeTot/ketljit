@@ -85,8 +85,41 @@ static void initNamespace(KETLNamespace* namespace) {
 	ketlInitIntMap(&namespace->namespaces, sizeof(KETLNamespace), 8);
 }
 
-static void deinitNamespace(KETLNamespace* namespace) {
+#include <stdlib.h>
+
+static void deinitNamespace(KETLNamespace* namespace) {	
+	{
+		KETLIntMapIterator childrenIterator;
+		ketlInitIntMapIterator(&childrenIterator, &namespace->namespaces);
+		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
+			const char* name;
+			KETLNamespace* child;
+			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&name), &child);
+
+			deinitNamespace(child);
+			ketlIntMapIteratorNext(&childrenIterator);
+		}
+	}
+	
 	ketlDeinitIntMap(&namespace->namespaces);
+
+	{
+		KETLIntMapIterator childrenIterator;
+		ketlInitIntMapIterator(&childrenIterator, &namespace->variables);
+		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
+			const char* name;
+			IRUndefinedValue* child;
+			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&name), &child);
+
+			KETLIRVariable variable = *child->variable;
+			if (variable.traits.values.type == KETL_TRAIT_TYPE_LVALUE) {
+				free(variable.value.pointer);
+			}
+
+			ketlIntMapIteratorNext(&childrenIterator);
+		}
+	}
+
 	ketlDeinitIntMap(&namespace->variables);
 	ketlDeinitIntMap(&namespace->types);
 }
@@ -192,8 +225,16 @@ static void registerPrimitiveCastOperator(KETLState* state, KETLTypePrimitive* s
 
 void ketlDeinitState(KETLState* state) {
 	{
-		// TODO deinit search nodes
-		(void)deinitTypeFunctionSearchNode;
+		KETLIntMapIterator childrenIterator;
+		ketlInitIntMapIterator(&childrenIterator, &state->typeFunctionSearchMap);
+		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
+			KETLTypePtr type;
+			TypeFunctionSearchNode* child;
+			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&type.base), &child);
+
+			deinitTypeFunctionSearchNode(child);
+			ketlIntMapIteratorNext(&childrenIterator);
+		}
 	}
 
 	ketlDeinitIntMap(&state->typeFunctionSearchMap);
@@ -314,14 +355,10 @@ void ketlInitState(KETLState* state) {
 	registerPrimitiveCastOperator(state, &state->primitives.f64_t, &state->primitives.i8_t, KETL_IR_CODE_CAST_FLOAT64_INT8, false);
 }
 
-#include <stdlib.h>
-
-void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, void* pointer) {
+static void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, KETLVariableTraits traits, void* pointer) {
 	KETLIRVariable* variable = ketlGetFreeObjectFromPool(&state->variablesPool);
 	variable->type = type;
-	variable->traits.values.isConst = false;
-	variable->traits.values.isNullable = false;
-	variable->traits.values.type = KETL_TRAIT_TYPE_REF;
+	variable->traits = traits;
 	variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
 	variable->value.pointer = pointer;
 
@@ -336,6 +373,25 @@ void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, vo
 	ketlIntMapGetOrCreate(&state->globalNamespace.variables, (KETLIntMapKey)uniqName, &ppUValue);
 	*ppUValue = uvalue;
 }
+
+void ketl_state_define_external_variable(KETLState* state, const char* name, KETLTypePtr type, void* pointer) {
+	KETLVariableTraits traits;
+	traits.values.isConst = false;
+	traits.values.isNullable = false;
+	traits.values.type = KETL_TRAIT_TYPE_REF;
+	ketlDefineVariable(state, name, type, traits, pointer);
+}
+
+void* ketl_state_define_internal_variable(KETLState* state, const char* name, KETLTypePtr type) {
+	KETLVariableTraits traits;
+	traits.values.isConst = false;
+	traits.values.isNullable = false;
+	traits.values.type = KETL_TRAIT_TYPE_LVALUE;
+	void* pointer = malloc(getStackTypeSize(traits, type));
+	ketlDefineVariable(state, name, type, traits, pointer);
+	return pointer;
+}
+
 
 KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount) {
 	KETLSyntaxNode* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);

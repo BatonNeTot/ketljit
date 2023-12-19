@@ -50,7 +50,18 @@ namespace KETL {
 		}
 
 		void defineVariable(const char* name, int64_t& variable) {
-			ketlDefineVariable(&_stateImpl, name, i64(), &variable);
+			ketl_state_define_external_variable(&_stateImpl, name, i64(), &variable);
+		}
+
+		int64_t& defineVariable(const char* name, int64_t&& initialValue) {
+			int64_t& variable = *reinterpret_cast<int64_t*>(ketl_state_define_internal_variable(&_stateImpl, name, i64()));
+			variable = initialValue;
+			return variable;
+		}
+
+		template<class T>
+		T& defineVariable(const char* name) {
+			return defineVariable(name, T());
 		}
 
 		Function compile(const std::string &source) {

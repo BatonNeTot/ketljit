@@ -36,8 +36,7 @@ int main(int argc, char** argv) {
 	for (auto i = 0u; i < 1; ++i) {
 		KETL::State ketlState;
 
-		int64_t testVariable = 4;
-		ketlState.defineVariable("test", testVariable);
+		int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
 		std::vector<KETLParameter> parameters = { 
 			//{"a", ketlState.i32(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
