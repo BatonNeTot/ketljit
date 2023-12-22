@@ -15,7 +15,7 @@ static auto registerTests = []() {
 		int64_t value = 0u;
 		state.defineVariable("value", value);
 
-		auto evaluationResult = state.compile(R"(
+		auto evaluationResult = state.compileFunction(R"(
 			var testValue := 0;
 
 			if (value != 0) {

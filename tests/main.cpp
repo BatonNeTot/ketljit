@@ -17,24 +17,27 @@ int main(int argc, char** argv) {
 	(void)argc;
 	(void)argv;
 
-	launchCheckTests();
+	//launchCheckTests();
 #ifdef NDEBUG
 	launchSpeedTests(10000000);
 #else
-	launchSpeedTests(10000);
+	//launchSpeedTests(10000);
 #endif
 
 	auto source = R"(
-	if (test == 4) {
-		i32 tmp := 80;
-		return tmp;
-	} else {
-		return test;
-	}
+		i64 inside := 7 + 6;
+		return inside;
 )";
+	(void)source;
 
 	for (auto i = 0u; i < 1; ++i) {
 		KETL::State ketlState;
+
+		std::cout << ketlState.eval(source) << std::endl;
+
+		std::cout << ketlState.eval("return inside + 12;") << std::endl;
+
+		/*
 
 		int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
@@ -55,6 +58,7 @@ int main(int argc, char** argv) {
 
 		std::cout << function.call<int64_t>(10, 4) << std::endl;
 		std::cout << testVariable << std::endl;
+		*/
 	}
 
 	return 0;

@@ -9,7 +9,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		state.defineVariable("sum", sum);
 
-		auto compilationResult = state.compile(R"(
+		auto compilationResult = state.compileFunction(R"(
 			sum := 3;
 
 			if (sum == 3) {
@@ -40,7 +40,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		state.defineVariable("sum", sum);
 
-		auto compilationResult = state.compile(R"(
+		auto compilationResult = state.compileFunction(R"(
 			sum := 4;
 
 			if (sum == 3) {
@@ -71,7 +71,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		state.defineVariable("sum", sum);
 
-		auto compilationResult = state.compile(R"(
+		auto compilationResult = state.compileFunction(R"(
 			sum := 3;
 
 			if (sum == 3) {
@@ -100,7 +100,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		state.defineVariable("sum", sum);
 
-		auto compilationResult = state.compile(R"(
+		auto compilationResult = state.compileFunction(R"(
 			sum := 3;
 
 			if (sum == 3) {} else {
@@ -129,7 +129,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		state.defineVariable("sum", sum);
 
-		auto compilationResult = state.compile(R"(
+		auto compilationResult = state.compileFunction(R"(
 			sum := 4;
 
 			if (sum == 3) {} else {
@@ -158,7 +158,7 @@ static auto registerTests = []() {
 		int64_t sum = 0;
 		state.defineVariable("sum", sum);
 
-		auto compilationResult = state.compile(R"(
+		auto compilationResult = state.compileFunction(R"(
 			sum := 0;
 			var first := 3;
 			var second := 4;

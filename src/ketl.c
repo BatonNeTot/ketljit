@@ -241,6 +241,7 @@ void ketlDeinitState(KETLState* state) {
 	ketlDeinitObjectPool(&state->typeFunctionsPool);
 	ketlDeinitObjectPool(&state->typeParametersPool);
 
+	// TODO destruct variables in reversed order
 	ketlDeinitObjectPool(&state->variablesPool);
 	ketlDeinitObjectPool(&state->undefVarPool);
 
@@ -392,14 +393,30 @@ void* ketl_state_define_internal_variable(KETLState* state, const char* name, KE
 	return pointer;
 }
 
+static KETLFunction* ketl_state_compile_function_impl(KETLState* state, KETLNamespace* namespace, const char* source, KETLParameter* parameters, uint64_t parametersCount);
 
 KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount) {
+	return ketl_state_compile_function_impl(state, NULL, source, parameters, parametersCount);
+}
+
+int64_t ketl_state_eval_local(KETLState* state, const char* source) {
+	KETLFunction* function = ketl_state_compile_function_impl(state, NULL, source, NULL, 0);
+	return function ? KETL_CALL_FUNCTION(function, int64_t(*)()) : -1;
+}
+
+
+int64_t ketl_state_eval(KETLState* state, const char* source) {
+	KETLFunction* function = ketl_state_compile_function_impl(state, &state->globalNamespace, source, NULL, 0);
+	return function ? KETL_CALL_FUNCTION(function, int64_t(*)()) : -1;
+}
+
+KETLFunction* ketl_state_compile_function_impl(KETLState* state, KETLNamespace* namespace, const char* source, KETLParameter* parameters, uint64_t parametersCount) {
 	KETLSyntaxNode* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
 	if (!root) {
 		return NULL;
 	}
 
-	KETLIRFunctionDefinition irFunction = ketlBuildIR((KETLTypePtr){ NULL }, &state->compiler.irBuilder, root, parameters, parametersCount);
+	KETLIRFunctionDefinition irFunction = ketlBuildIR(&state->compiler.irBuilder, namespace, (KETLTypePtr){ NULL }, root, parameters, parametersCount);
 	if (irFunction.function == NULL) {
 		return NULL;
 	}

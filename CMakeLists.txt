@@ -7,7 +7,7 @@ set(PROJECT_TARGET "ketljit")
 if(MSVC)
     add_compile_options(/we4013 /we4020 /we4029 /we4047 /we4098 /we4133 /we4244 /we4715 /we4716)
 else()
-    add_compile_options(-Wall -Wextra -pedantic -Werror)
+    add_compile_options(-Wall -Wextra -Werror) # -pedantic is not possible due to error: ISO C forbids conversion of object pointer to function pointer type
 endif()
 
 add_subdirectory ("src")

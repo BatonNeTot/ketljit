@@ -15,6 +15,7 @@
 #include "ketl/utils.h"
 
 KETL_FORWARD(KETLState);
+KETL_FORWARD(KETLNamespace);
 
 KETL_DEFINE(KETLIRVariable) {
 	KETLTypePtr type;
@@ -106,6 +107,6 @@ void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state);
 
 void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
 
-KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount);
+KETLIRFunctionDefinition ketlBuildIR(KETLIRBuilder* irBuilder, KETLNamespace* ketlNamespace, KETLTypePtr returnType, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount);
 
 #endif /*compiler_ir_builder_h*/

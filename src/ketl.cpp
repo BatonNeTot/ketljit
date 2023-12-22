@@ -9,18 +9,12 @@ int main(int argc, char **argv) {
     
     KETL::State ketlState;
 
-	std::vector<KETLParameter> parameters = {};
     std::string line;
 
     while (std::cin) {
         std::cout << ">> " << std::flush;
         std::getline(std::cin, line);
-        KETL::Function function = ketlState.compile(line, parameters.data(), parameters.size());
-        if (!function) {
-            continue;
-        }
-
-	    function.callVoid();
+        ketlState.eval(line);
     }
 
     return 0;

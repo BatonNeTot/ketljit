@@ -1033,7 +1033,7 @@ static inline uint64_t bakeStackUsage(KETLIRScopedVariable* stackRoot) {
 	}
 }
 
-KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBuilder, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount) {
+KETLIRFunctionDefinition ketlBuildIR(KETLIRBuilder* irBuilder, KETLNamespace* namespace, KETLTypePtr returnType, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount) {
 	KETLIRFunctionWIP wip;
 
 	wip.builder = irBuilder;
@@ -1261,7 +1261,11 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 
 	// do last conversions
 	if (returnType.primitive != &irBuilder->state->primitives.void_t) {
+		KETLIRScopedVariable* savedTempVarRoot = wip.vars.tempVariables;
+		
 		for (IRReturnNode* returnIt = wip.returnOperations; returnIt; returnIt = returnIt->next) {
+			wip.vars.tempVariables = returnIt->tempVariable;
+
 			ketlResetPool(&irBuilder->castingPool);
 			CastingOption* expressionCasting = castDelegateToVariable(irBuilder, returnIt->returnVariable, returnType);
 
@@ -1300,14 +1304,67 @@ KETLIRFunctionDefinition ketlBuildIR(KETLTypePtr returnType, KETLIRBuilder* irBu
 			operation->argumentCount = 1;
 			operation->arguments = ketlGetNFreeObjectsFromPool(&irBuilder->argumentPointersPool, 1);
 			operation->arguments[0] = &expressionVarible->value;
-
-			// TODO remember why is that here
-			//KETLIROperation* returnOperation = returnIt->operation;
 		}
+		wip.vars.tempVariables = savedTempVarRoot;
 	}
 
 	if (wip.buildFailed) {
 		return functionDefinition;
+	}
+
+	// we are golden, lets build it
+
+	// if namespace is set, this is the time to fill it
+	if (namespace) {
+		KETLIntMapIterator childrenIterator;
+		ketlInitIntMapIterator(&childrenIterator, &irBuilder->variablesMap);
+		for (; ketlIntMapIteratorHasNext(&childrenIterator); ketlIntMapIteratorNext(&childrenIterator)) {
+			const char* name;
+			IRUndefinedValue** uvalue;
+			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&name), &uvalue);
+
+			if ((*uvalue)->scopeIndex != 1) {
+				continue;
+			}
+
+			KETLIRScopedVariable* pStackVariable = (KETLIRScopedVariable*)(*uvalue)->variable;
+			KETLIRScopedVariable stackVariable = *pStackVariable;
+
+			KETLIRScopedVariable* replacement = stackVariable.firstChild;
+			if (replacement) {
+				KETLIRScopedVariable* children = replacement;
+				while (children) {
+					children->parent = stackVariable.parent;
+					children = children->nextSibling;
+				}
+			} else {
+				replacement = stackVariable.nextSibling;
+			}
+
+			KETLIRScopedVariable* firstSibling;
+			if (stackVariable.parent) {
+				firstSibling = stackVariable.parent->firstChild;
+			} else {
+				firstSibling = wip.stack.stackRoot;
+			}
+
+			if (firstSibling != pStackVariable) {
+				while(firstSibling->nextSibling != pStackVariable) {
+					firstSibling = firstSibling->nextSibling;
+				}
+				firstSibling->nextSibling = replacement;
+			} else {
+				if (wip.stack.stackRoot == pStackVariable) {
+					wip.stack.stackRoot = replacement;
+				} else {
+					stackVariable.parent->firstChild = replacement;
+				}
+			}
+
+			stackVariable.variable.value.pointer = ketl_state_define_internal_variable(wip.builder->state, name, stackVariable.variable.type);
+			stackVariable.variable.value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
+			pStackVariable->variable.value = stackVariable.variable.value;
+		}
 	}
 
 	ketlIntMapReset(&irBuilder->operationReferMap);

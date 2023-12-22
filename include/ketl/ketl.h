@@ -96,4 +96,8 @@ KETLTypePtr getFunctionType(KETLState* state, KETLTypeParameters* parameters, ui
 
 KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount);
 
+int64_t ketl_state_eval_local(KETLState* state, const char* source);
+
+int64_t ketl_state_eval(KETLState* state, const char* source);
+
 #endif /*ketl_h*/
