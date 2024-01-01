@@ -1,10 +1,10 @@
-﻿//🍲ketl
-#ifndef type_h
-#define type_h
+﻿//🫖ketl
+#ifndef ketl_type_h
+#define ketl_type_h
 
 #include "ketl/utils.h"
 
-typedef uint8_t KETLTraitType;
+typedef uint8_t ketl_trait_type;
 
 #define KETL_TRAIT_TYPE_LITERAL 0
 #define KETL_TRAIT_TYPE_LVALUE 1
@@ -12,12 +12,12 @@ typedef uint8_t KETLTraitType;
 #define KETL_TRAIT_TYPE_REF 3
 #define KETL_TRAIT_TYPE_REF_IN 4
 
-KETL_DEFINE(KETLVariableTraits) {
+KETL_DEFINE(ketl_variable_traits) {
 	union {
 		struct {
 			bool isNullable : 1;
 			bool isConst : 1;
-			KETLTraitType type : 3;
+			ketl_trait_type type : 3;
 		} values;
 		uint8_t hash : 5;
 	};
@@ -25,18 +25,18 @@ KETL_DEFINE(KETLVariableTraits) {
 
 #define KETL_VARIABLE_TRAIT_HASH_COUNT 20
 
-KETL_FORWARD(KETLTypeBase);
-KETL_FORWARD(KETLTypePrimitive);
-KETL_FORWARD(KETLTypeFunction);
+KETL_FORWARD(ketl_type_base);
+KETL_FORWARD(ketl_type_primitive);
+KETL_FORWARD(ketl_type_function);
 
-KETL_DEFINE(KETLTypePtr) {
+KETL_DEFINE(ketl_type_pointer) {
 	union {
-		KETLTypeBase* base;
-		KETLTypePrimitive* primitive;
-		KETLTypeFunction* function;
+		ketl_type_base* base;
+		ketl_type_primitive* primitive;
+		ketl_type_function* function;
 	};
 };
 
-uint64_t getStackTypeSize(KETLVariableTraits traits, KETLTypePtr type);
+uint64_t ketl_type_get_stack_size(ketl_variable_traits traits, ketl_type_pointer type);
 
-#endif /*type_h*/
+#endif // ketl_type_h

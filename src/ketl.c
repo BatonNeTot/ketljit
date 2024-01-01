@@ -1,16 +1,17 @@
-﻿//🍲ketl
-#include "ketl/ketl.h"
+﻿//🫖ketl
+#include "ketl_impl.h"
 
+#include "variable_impl.h"
 #include "compiler/ir_builder.h"
 
-#include "ketl/compiler/syntax_node.h"
+#include "compiler/syntax_node.h"
 #include "ketl/type.h"
 
 #include <string.h>
 
 KETL_DEFINE(TypeFunctionSearchNodeByTraits) {
-	KETLTypeFunction* leaf;
-	KETLIntMap children;
+	ketl_type_function* leaf;
+	ketl_int_map children;
 	bool initialized;
 };
 
@@ -33,22 +34,22 @@ static void deinitTypeFunctionSearchNode(TypeFunctionSearchNode* node) {
 			return;
 		}
 
-		KETLIntMapIterator childrenIterator;
-		ketlInitIntMapIterator(&childrenIterator, &byTraits->children);
-		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
-			KETLTypePtr type;
+		ketl_int_map_iterator childrenIterator;
+		ketl_int_map_iterator_init(&childrenIterator, &byTraits->children);
+		while (ketl_int_map_iterator_has_next(&childrenIterator)) {
+			ketl_type_pointer type;
 			TypeFunctionSearchNode* child;
-			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&type.base), &child);
+			ketl_int_map_iterator_get(&childrenIterator, (ketl_int_map_key*)(&type.base), &child);
 
 			deinitTypeFunctionSearchNode(child);
-			ketlIntMapIteratorNext(&childrenIterator);
+			ketl_int_map_iterator_next(&childrenIterator);
 		}
 	}
 }
 
-static KETLTypeFunction* getTypeFunction(KETLState* state, KETLIntMap* typeFunctionMap, KETLTypeParameters* parameters, uint64_t lastParameter, uint64_t currentParameter) {
+static ketl_type_function* getTypeFunction(ketl_state* state, ketl_int_map* typeFunctionMap, ketl_type_parameters* parameters, uint64_t lastParameter, uint64_t currentParameter) {
 	TypeFunctionSearchNode* child;
-	if (ketlIntMapGetOrCreate(typeFunctionMap, (KETLIntMapKey)parameters[currentParameter].type.base, &child)) {
+	if (ketl_int_map_get_or_create(typeFunctionMap, (ketl_int_map_key)parameters[currentParameter].type.base, &child)) {
 		initTypeFunctionSearchNode(child);
 	}
 
@@ -58,90 +59,90 @@ static KETLTypeFunction* getTypeFunction(KETLState* state, KETLIntMap* typeFunct
 			return byTraits->leaf;
 		}
 
-		KETLTypeFunction* function = ketlGetFreeObjectFromPool(&state->typeFunctionsPool);
+		ketl_type_function* function = ketl_object_pool_get(&state->typeFunctionsPool);
 		function->kind = KETL_TYPE_KIND_FUNCTION;
 		function->name = NULL; // TODO construct name
-		function->parameters = ketlGetNFreeObjectsFromPool(&state->typeParametersPool, function->parametersCount = (uint32_t)(lastParameter + 1));
-		memcpy(function->parameters, parameters, sizeof(KETLTypeParameters) * function->parametersCount);
+		function->parameters = ketl_object_pool_get_array(&state->typeParametersPool, function->parametersCount = (uint32_t)(lastParameter + 1));
+		memcpy(function->parameters, parameters, sizeof(ketl_type_parameters) * function->parametersCount);
 		uint64_t offset = 0;
 		for (uint64_t i = 1u; i <= lastParameter; ++i) {
 			function->parameters[i].offset = offset;
-			offset += getStackTypeSize(function->parameters[i].traits, function->parameters[i].type);
+			offset += ketl_type_get_stack_size(function->parameters[i].traits, function->parameters[i].type);
 		}
 		return function;
 	}
 	else {
 		if (!byTraits->initialized) {
 			byTraits->initialized = true;
-			ketlInitIntMap(&byTraits->children, sizeof(TypeFunctionSearchNode), 16);
+			ketl_int_map_init(&byTraits->children, sizeof(TypeFunctionSearchNode), 16);
 		}
 		return getTypeFunction(state, &byTraits->children, parameters, lastParameter, currentParameter + 1);
 	}
 }
 
-static void initNamespace(KETLNamespace* namespace) {
-	ketlInitIntMap(&namespace->types, sizeof(KETLTypePtr), 16);
-	ketlInitIntMap(&namespace->variables, sizeof(IRUndefinedValue*), 16);
-	ketlInitIntMap(&namespace->namespaces, sizeof(KETLNamespace), 8);
+static void initNamespace(ketl_namespace* namespace) {
+	ketl_int_map_init(&namespace->types, sizeof(ketl_type_pointer), 16);
+	ketl_int_map_init(&namespace->variables, sizeof(ketl_ir_undefined_value*), 16);
+	ketl_int_map_init(&namespace->namespaces, sizeof(ketl_namespace), 8);
 }
 
 #include <stdlib.h>
 
-static void deinitNamespace(KETLNamespace* namespace) {	
+static void deinitNamespace(ketl_namespace* namespace) {	
 	{
-		KETLIntMapIterator childrenIterator;
-		ketlInitIntMapIterator(&childrenIterator, &namespace->namespaces);
-		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
+		ketl_int_map_iterator childrenIterator;
+		ketl_int_map_iterator_init(&childrenIterator, &namespace->namespaces);
+		while (ketl_int_map_iterator_has_next(&childrenIterator)) {
 			const char* name;
-			KETLNamespace* child;
-			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&name), &child);
+			ketl_namespace* child;
+			ketl_int_map_iterator_get(&childrenIterator, (ketl_int_map_key*)(&name), &child);
 
 			deinitNamespace(child);
-			ketlIntMapIteratorNext(&childrenIterator);
+			ketl_int_map_iterator_next(&childrenIterator);
 		}
 	}
 	
-	ketlDeinitIntMap(&namespace->namespaces);
+	ketl_int_map_deinit(&namespace->namespaces);
 
 	{
-		KETLIntMapIterator childrenIterator;
-		ketlInitIntMapIterator(&childrenIterator, &namespace->variables);
-		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
+		ketl_int_map_iterator childrenIterator;
+		ketl_int_map_iterator_init(&childrenIterator, &namespace->variables);
+		while (ketl_int_map_iterator_has_next(&childrenIterator)) {
 			const char* name;
-			IRUndefinedValue* child;
-			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&name), &child);
+			ketl_ir_undefined_value* child;
+			ketl_int_map_iterator_get(&childrenIterator, (ketl_int_map_key*)(&name), &child);
 
-			KETLIRVariable variable = *child->variable;
+			ketl_ir_variable variable = *child->variable;
 			if (variable.traits.values.type == KETL_TRAIT_TYPE_LVALUE) {
 				free(variable.value.pointer);
 			}
 
-			ketlIntMapIteratorNext(&childrenIterator);
+			ketl_int_map_iterator_next(&childrenIterator);
 		}
 	}
 
-	ketlDeinitIntMap(&namespace->variables);
-	ketlDeinitIntMap(&namespace->types);
+	ketl_int_map_deinit(&namespace->variables);
+	ketl_int_map_deinit(&namespace->types);
 }
 
-static void createPrimitive(KETLTypePrimitive* type, const char* name, uint64_t size, KETLNamespace* globalNamespace) {
+static void createPrimitive(ketl_type_primitive* type, const char* name, uint64_t size, ketl_namespace* globalNamespace) {
 	type->name = name;
 	type->kind = KETL_TYPE_KIND_PRIMITIVE;
 	type->size = (uint32_t)size;
 
-	KETLTypePtr* typePtr;
-	ketlIntMapGetOrCreate(&globalNamespace->types, (KETLIntMapKey)name, &typePtr);
+	ketl_type_pointer* typePtr;
+	ketl_int_map_get_or_create(&globalNamespace->types, (ketl_int_map_key)name, &typePtr);
 	typePtr->primitive = type;
 }
 
-static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode operatorCode, KETLIROperationCode operationCode, KETLTypePrimitive* type) {
-	KETLBinaryOperator** pOperator;
-	if (ketlIntMapGetOrCreate(&state->binaryOperators, operatorCode, &pOperator)) {
+static void registerPrimitiveBinaryOperator(ketl_state* state, ketl_operator_code operatorCode, ketl_ir_operation_code operationCode, ketl_type_primitive* type) {
+	ketl_binary_operator** pOperator;
+	if (ketl_int_map_get_or_create(&state->binaryOperators, operatorCode, &pOperator)) {
 		*pOperator = NULL;
 	}
 
-	KETLBinaryOperator operator;
-	KETLVariableTraits traits;
+	ketl_binary_operator operator;
+	ketl_variable_traits traits;
 
 	traits.values.type = KETL_TRAIT_TYPE_REF_IN;
 	traits.values.isNullable = false;
@@ -159,19 +160,19 @@ static void registerPrimitiveBinaryOperator(KETLState* state, KETLOperatorCode o
 	operator.outputType.primitive = type;
 
 	operator.next = *pOperator;
-	KETLBinaryOperator* newOperator = ketlGetFreeObjectFromPool(&state->binaryOperatorsPool);
+	ketl_binary_operator* newOperator = ketl_object_pool_get(&state->binaryOperatorsPool);
 	*newOperator = operator;
 	*pOperator = newOperator;
 }
 
-static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCode operatorCode, KETLIROperationCode operationCode, KETLTypePrimitive* type) {
-	KETLBinaryOperator** pOperator;
-	if (ketlIntMapGetOrCreate(&state->binaryOperators, operatorCode, &pOperator)) {
+static void registerPrimitiveComparisonOperator(ketl_state* state, ketl_operator_code operatorCode, ketl_ir_operation_code operationCode, ketl_type_primitive* type) {
+	ketl_binary_operator** pOperator;
+	if (ketl_int_map_get_or_create(&state->binaryOperators, operatorCode, &pOperator)) {
 		*pOperator = NULL;
 	}
 
-	KETLBinaryOperator operator;
-	KETLVariableTraits traits;
+	ketl_binary_operator operator;
+	ketl_variable_traits traits;
 
 	traits.values.type = KETL_TRAIT_TYPE_REF_IN;
 	traits.values.isNullable = false;
@@ -189,19 +190,19 @@ static void registerPrimitiveComparisonOperator(KETLState* state, KETLOperatorCo
 	operator.outputType.primitive = &state->primitives.bool_t;
 
 	operator.next = *pOperator;
-	KETLBinaryOperator* newOperator = ketlGetFreeObjectFromPool(&state->binaryOperatorsPool);
+	ketl_binary_operator* newOperator = ketl_object_pool_get(&state->binaryOperatorsPool);
 	*newOperator = operator;
 	*pOperator = newOperator;
 }
 
-static void registerPrimitiveCastOperator(KETLState* state, KETLTypePrimitive* sourceType, KETLTypePrimitive* targetType, KETLIROperationCode operationCode, bool implicit) {
-	KETLCastOperator** pOperator;
-	if (ketlIntMapGetOrCreate(&state->castOperators, (KETLIntMapKey)sourceType, &pOperator)) {
+static void registerPrimitiveCastOperator(ketl_state* state, ketl_type_primitive* sourceType, ketl_type_primitive* targetType, ketl_ir_operation_code operationCode, bool implicit) {
+	ketl_cast_operator** pOperator;
+	if (ketl_int_map_get_or_create(&state->castOperators, (ketl_int_map_key)sourceType, &pOperator)) {
 		*pOperator = NULL;
 	}
 
-	KETLCastOperator operator;
-	KETLVariableTraits traits;
+	ketl_cast_operator operator;
+	ketl_variable_traits traits;
 
 	traits.values.type = KETL_TRAIT_TYPE_REF_IN;
 	traits.values.isNullable = false;
@@ -217,75 +218,83 @@ static void registerPrimitiveCastOperator(KETLState* state, KETLTypePrimitive* s
 	operator.implicit = implicit;
 
 	operator.next = *pOperator;
-	KETLCastOperator* newOperator = ketlGetFreeObjectFromPool(&state->castOperatorsPool);
+	ketl_cast_operator* newOperator = ketl_object_pool_get(&state->castOperatorsPool);
 	*newOperator = operator;
 	*pOperator = newOperator;
 
 }
 
-void ketlDeinitState(KETLState* state) {
+void ketl_state_destroy(ketl_state* state) {
 	{
-		KETLIntMapIterator childrenIterator;
-		ketlInitIntMapIterator(&childrenIterator, &state->typeFunctionSearchMap);
-		while (ketlIntMapIteratorHasNext(&childrenIterator)) {
-			KETLTypePtr type;
+		ketl_int_map_iterator childrenIterator;
+		ketl_int_map_iterator_init(&childrenIterator, &state->typeFunctionSearchMap);
+		while (ketl_int_map_iterator_has_next(&childrenIterator)) {
+			ketl_type_pointer type;
 			TypeFunctionSearchNode* child;
-			ketlIntMapIteratorGet(&childrenIterator, (KETLIntMapKey*)(&type.base), &child);
+			ketl_int_map_iterator_get(&childrenIterator, (ketl_int_map_key*)(&type.base), &child);
 
 			deinitTypeFunctionSearchNode(child);
-			ketlIntMapIteratorNext(&childrenIterator);
+			ketl_int_map_iterator_next(&childrenIterator);
 		}
 	}
 
-	ketlDeinitIntMap(&state->typeFunctionSearchMap);
-	ketlDeinitObjectPool(&state->typeFunctionsPool);
-	ketlDeinitObjectPool(&state->typeParametersPool);
+	ketl_int_map_deinit(&state->typeFunctionSearchMap);
+	ketl_object_pool_deinit(&state->typeFunctionsPool);
+	ketl_object_pool_deinit(&state->typeParametersPool);
 
 	// TODO destruct variables in reversed order
-	ketlDeinitObjectPool(&state->variablesPool);
-	ketlDeinitObjectPool(&state->undefVarPool);
+	ketl_object_pool_deinit(&state->variablesPool);
+	ketl_object_pool_deinit(&state->undefVarPool);
 
-	ketlDeinitIntMap(&state->castOperators);
-	ketlDeinitIntMap(&state->binaryOperators);
-	ketlDeinitIntMap(&state->unaryOperators);
-	ketlDeinitObjectPool(&state->castOperatorsPool);
-	ketlDeinitObjectPool(&state->binaryOperatorsPool);
-	ketlDeinitObjectPool(&state->unaryOperatorsPool);
+	ketl_int_map_deinit(&state->castOperators);
+	ketl_int_map_deinit(&state->binaryOperators);
+	ketl_int_map_deinit(&state->unaryOperators);
+	ketl_object_pool_deinit(&state->castOperatorsPool);
+	ketl_object_pool_deinit(&state->binaryOperatorsPool);
+	ketl_object_pool_deinit(&state->unaryOperatorsPool);
 
 	deinitNamespace(&state->globalNamespace);
-	ketlIRCompilerDeinit(&state->irCompiler);
-	ketlDeinitCompiler(&state->compiler);
-	ketlDeinitAtomicStrings(&state->strings);
+	ketl_ir_compiler_deinit(&state->irCompiler);
+	ketl_compiler_deinit(&state->compiler);
+	ketl_atomic_strings_deinit(&state->strings);
+
+	free(state);
 }
 
-void ketlInitState(KETLState* state) {
-	ketlInitAtomicStrings(&state->strings, 16);
-	ketlInitCompiler(&state->compiler, state);
-	ketlIRCompilerInit(&state->irCompiler);
+#include "containers/common.h"
+#include <stdio.h>
+
+ketl_state* ketl_state_create() {
+	ketl_state* state = malloc(sizeof(ketl_state));
+
+	ketl_atomic_strings_init(&state->strings, 16);
+	ketl_compiler_init(&state->compiler, state);
+	ketl_ir_compiler_init(&state->irCompiler);
 	initNamespace(&state->globalNamespace);
 
-	ketlInitObjectPool(&state->unaryOperatorsPool, sizeof(KETLUnaryOperator), 8);
-	ketlInitObjectPool(&state->binaryOperatorsPool, sizeof(KETLBinaryOperator), 8);
-	ketlInitObjectPool(&state->castOperatorsPool, sizeof(KETLCastOperator), 8);
-	ketlInitIntMap(&state->unaryOperators, sizeof(KETLUnaryOperator*), 4);
-	ketlInitIntMap(&state->binaryOperators, sizeof(KETLBinaryOperator*), 4);
-	ketlInitIntMap(&state->castOperators, sizeof(KETLCastOperator*), 4);
+	ketl_object_pool_init(&state->unaryOperatorsPool, sizeof(ketl_unary_operator), 8);
+	ketl_object_pool_init(&state->binaryOperatorsPool, sizeof(ketl_binary_operator), 8);
+	ketl_object_pool_init(&state->castOperatorsPool, sizeof(ketl_cast_operator), 8);
+	ketl_int_map_init(&state->unaryOperators, sizeof(ketl_unary_operator*), 4);
+	ketl_int_map_init(&state->binaryOperators, sizeof(ketl_binary_operator*), 4);
+	ketl_int_map_init(&state->castOperators, sizeof(ketl_cast_operator*), 4);
 
-	ketlInitObjectPool(&state->undefVarPool, sizeof(IRUndefinedValue), 16);
-	ketlInitObjectPool(&state->variablesPool, sizeof(KETLIRVariable), 16);
+	ketl_object_pool_init(&state->undefVarPool, sizeof(ketl_ir_undefined_value), 16);
+	ketl_object_pool_init(&state->variablesPool, sizeof(ketl_ir_variable), 16);
 
-	ketlInitObjectPool(&state->typeParametersPool, sizeof(KETLTypeParameters), 16);
-	ketlInitObjectPool(&state->typeFunctionsPool, sizeof(KETLTypeFunction), 16);
-	ketlInitIntMap(&state->typeFunctionSearchMap, sizeof(TypeFunctionSearchNode), 16);
+	ketl_object_pool_init(&state->typeParametersPool, sizeof(ketl_type_parameters), 16);
+	ketl_object_pool_init(&state->typeFunctionsPool, sizeof(ketl_type_function), 16);
+	ketl_int_map_init(&state->typeFunctionSearchMap, sizeof(TypeFunctionSearchNode), 16);
 
-	createPrimitive(&state->primitives.void_t, ketlAtomicStringsGet(&state->strings, "void", KETL_NULL_TERMINATED_LENGTH), 0, &state->globalNamespace);
-	createPrimitive(&state->primitives.bool_t, ketlAtomicStringsGet(&state->strings, "bool", KETL_NULL_TERMINATED_LENGTH), sizeof(bool), &state->globalNamespace);
-	createPrimitive(&state->primitives.i8_t, ketlAtomicStringsGet(&state->strings, "i8", KETL_NULL_TERMINATED_LENGTH), sizeof(int8_t), &state->globalNamespace);
-	createPrimitive(&state->primitives.i16_t, ketlAtomicStringsGet(&state->strings, "i16", KETL_NULL_TERMINATED_LENGTH), sizeof(int16_t), &state->globalNamespace);
-	createPrimitive(&state->primitives.i32_t, ketlAtomicStringsGet(&state->strings, "i32", KETL_NULL_TERMINATED_LENGTH), sizeof(int32_t), &state->globalNamespace);
-	createPrimitive(&state->primitives.i64_t, ketlAtomicStringsGet(&state->strings, "i64", KETL_NULL_TERMINATED_LENGTH), sizeof(int64_t), &state->globalNamespace);
-	createPrimitive(&state->primitives.f32_t, ketlAtomicStringsGet(&state->strings, "f32", KETL_NULL_TERMINATED_LENGTH), sizeof(float), &state->globalNamespace);
-	createPrimitive(&state->primitives.f64_t, ketlAtomicStringsGet(&state->strings, "f64", KETL_NULL_TERMINATED_LENGTH), sizeof(double), &state->globalNamespace);
+	createPrimitive(&state->primitives.void_t, ketl_atomic_strings_get(&state->strings, "void", KETL_NULL_TERMINATED_LENGTH), 0, &state->globalNamespace);
+	createPrimitive(&state->primitives.bool_t, ketl_atomic_strings_get(&state->strings, "bool", KETL_NULL_TERMINATED_LENGTH), sizeof(bool), &state->globalNamespace);
+	createPrimitive(&state->primitives.i8_t, ketl_atomic_strings_get(&state->strings, "i8", KETL_NULL_TERMINATED_LENGTH), sizeof(int8_t), &state->globalNamespace);
+	createPrimitive(&state->primitives.i16_t, ketl_atomic_strings_get(&state->strings, "i16", KETL_NULL_TERMINATED_LENGTH), sizeof(int16_t), &state->globalNamespace);
+	createPrimitive(&state->primitives.i32_t, ketl_atomic_strings_get(&state->strings, "i32", KETL_NULL_TERMINATED_LENGTH), sizeof(int32_t), &state->globalNamespace);
+	createPrimitive(&state->primitives.i64_t, ketl_atomic_strings_get(&state->strings, "i64", KETL_NULL_TERMINATED_LENGTH), sizeof(int64_t), &state->globalNamespace);
+	createPrimitive(&state->primitives.f32_t, ketl_atomic_strings_get(&state->strings, "f32", KETL_NULL_TERMINATED_LENGTH), sizeof(float), &state->globalNamespace);
+	createPrimitive(&state->primitives.f64_t, ketl_atomic_strings_get(&state->strings, "f64", KETL_NULL_TERMINATED_LENGTH), sizeof(double), &state->globalNamespace);
+
 
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_IR_CODE_ADD_INT8, &state->primitives.i8_t);
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_IR_CODE_ADD_INT16, &state->primitives.i16_t);
@@ -354,82 +363,117 @@ void ketlInitState(KETLState* state) {
 	registerPrimitiveCastOperator(state, &state->primitives.f64_t, &state->primitives.i32_t, KETL_IR_CODE_CAST_FLOAT64_INT32, false);
 	registerPrimitiveCastOperator(state, &state->primitives.f64_t, &state->primitives.i16_t, KETL_IR_CODE_CAST_FLOAT64_INT16, false);
 	registerPrimitiveCastOperator(state, &state->primitives.f64_t, &state->primitives.i8_t, KETL_IR_CODE_CAST_FLOAT64_INT8, false);
+
+	return state;
 }
 
-static void ketlDefineVariable(KETLState* state, const char* name, KETLTypePtr type, KETLVariableTraits traits, void* pointer) {
-	KETLIRVariable* variable = ketlGetFreeObjectFromPool(&state->variablesPool);
+static void ketlDefineVariable(ketl_state* state, const char* name, ketl_type_pointer type, ketl_variable_traits traits, void* pointer) {
+	ketl_ir_variable* variable = ketl_object_pool_get(&state->variablesPool);
 	variable->type = type;
 	variable->traits = traits;
 	variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
 	variable->value.pointer = pointer;
 
-	IRUndefinedValue* uvalue = ketlGetFreeObjectFromPool(&state->undefVarPool);
+	ketl_ir_undefined_value* uvalue = ketl_object_pool_get(&state->undefVarPool);
 	uvalue->variable = variable;
 	uvalue->scopeIndex = 0;
 	uvalue->next = NULL;
 
-	const char* uniqName = ketlAtomicStringsGet(&state->strings, name, KETL_NULL_TERMINATED_LENGTH);
+	const char* uniqName = ketl_atomic_strings_get(&state->strings, name, KETL_NULL_TERMINATED_LENGTH);
 
-	IRUndefinedValue** ppUValue;
-	ketlIntMapGetOrCreate(&state->globalNamespace.variables, (KETLIntMapKey)uniqName, &ppUValue);
+	ketl_ir_undefined_value** ppUValue;
+	ketl_int_map_get_or_create(&state->globalNamespace.variables, (ketl_int_map_key)uniqName, &ppUValue);
 	*ppUValue = uvalue;
 }
 
-void ketl_state_define_external_variable(KETLState* state, const char* name, KETLTypePtr type, void* pointer) {
-	KETLVariableTraits traits;
+void ketl_state_define_external_variable(ketl_state* state, const char* name, ketl_type_pointer type, void* pointer) {
+	ketl_variable_traits traits;
 	traits.values.isConst = false;
 	traits.values.isNullable = false;
 	traits.values.type = KETL_TRAIT_TYPE_REF;
 	ketlDefineVariable(state, name, type, traits, pointer);
 }
 
-void* ketl_state_define_internal_variable(KETLState* state, const char* name, KETLTypePtr type) {
-	KETLVariableTraits traits;
+void* ketl_state_define_internal_variable(ketl_state* state, const char* name, ketl_type_pointer type) {
+	ketl_variable_traits traits;
 	traits.values.isConst = false;
 	traits.values.isNullable = false;
 	traits.values.type = KETL_TRAIT_TYPE_LVALUE;
-	void* pointer = malloc(getStackTypeSize(traits, type));
+	void* pointer = malloc(ketl_type_get_stack_size(traits, type));
 	ketlDefineVariable(state, name, type, traits, pointer);
 	return pointer;
 }
 
-static KETLFunction* ketl_state_compile_function_impl(KETLState* state, KETLNamespace* namespace, const char* source, KETLParameter* parameters, uint64_t parametersCount);
+static ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespace* namespace, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
 
-KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount) {
+ketl_function* ketlCompileFunction(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
 	return ketl_state_compile_function_impl(state, NULL, source, parameters, parametersCount);
 }
 
-int64_t ketl_state_eval_local(KETLState* state, const char* source) {
-	KETLFunction* function = ketl_state_compile_function_impl(state, NULL, source, NULL, 0);
+int64_t ketl_state_eval_local(ketl_state* state, const char* source) {
+	ketl_function* function = ketl_state_compile_function_impl(state, NULL, source, NULL, 0);
 	return function ? KETL_CALL_FUNCTION(function, int64_t(*)()) : -1;
 }
 
 
-int64_t ketl_state_eval(KETLState* state, const char* source) {
-	KETLFunction* function = ketl_state_compile_function_impl(state, &state->globalNamespace, source, NULL, 0);
+int64_t ketl_state_eval(ketl_state* state, const char* source) {
+	ketl_function* function = ketl_state_compile_function_impl(state, &state->globalNamespace, source, NULL, 0);
 	return function ? KETL_CALL_FUNCTION(function, int64_t(*)()) : -1;
 }
 
-KETLFunction* ketl_state_compile_function_impl(KETLState* state, KETLNamespace* namespace, const char* source, KETLParameter* parameters, uint64_t parametersCount) {
-	KETLSyntaxNode* root = ketlSolveSyntax(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
+ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespace* namespace, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+	ketl_syntax_node* root = ketl_syntax_solver_solve(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
 	if (!root) {
 		return NULL;
 	}
 
-	KETLIRFunctionDefinition irFunction = ketlBuildIR(&state->compiler.irBuilder, namespace, (KETLTypePtr){ NULL }, root, parameters, parametersCount);
+	ketl_ir_function_definition irFunction = ketl_ir_builder_build(&state->compiler.irBuilder, namespace, KETL_CREATE_TYPE_PTR(NULL), root, parameters, parametersCount);
 	if (irFunction.function == NULL) {
 		return NULL;
 	}
 
 	// TODO optimization on ir
 
-	KETLFunction* function = ketlCompileIR(&state->irCompiler, irFunction.function);
+	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function);
 	free(irFunction.function);
 	return function;
 }
 
-KETLTypePtr getFunctionType(KETLState* state, KETLTypeParameters* parameters, uint64_t parametersCount) {
-	KETLTypePtr result;
+ketl_variable* ketl_state_comple_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+	ketl_syntax_node* root = ketl_syntax_solver_solve(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
+	if (!root) {
+		return NULL;
+	}
+
+	ketl_ir_function_definition irFunction = ketl_ir_builder_build(&state->compiler.irBuilder, NULL, KETL_CREATE_TYPE_PTR(NULL), root, parameters, parametersCount);
+	if (irFunction.function == NULL) {
+		return NULL;
+	}
+
+	// TODO optimization on ir
+
+	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function);
+	(void)function;
+	free(irFunction.function);
+
+	ketl_variable* variable = NULL;
+
+	//variable->value.pointer = function;
+	//variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
+
+	return variable;
+}
+
+ketl_type_pointer ketl_state_get_type_i32(ketl_state* state) {
+	return KETL_CREATE_TYPE_PTR(&state->primitives.i32_t);
+}
+
+ketl_type_pointer ketl_state_get_type_i64(ketl_state* state) {
+	return KETL_CREATE_TYPE_PTR(&state->primitives.i64_t);
+}
+
+ketl_type_pointer getFunctionType(ketl_state* state, ketl_type_parameters* parameters, uint64_t parametersCount) {
+	ketl_type_pointer result;
 	result.function = getTypeFunction(state, &state->typeFunctionSearchMap, parameters, parametersCount - 1, 0);
 	return result;
 }

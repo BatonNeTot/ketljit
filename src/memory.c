@@ -1,5 +1,5 @@
-﻿//🍲ketl
-#include "ketl/memory.h"
+﻿//🫖ketl
+#include "memory.h"
 
 #include <stdlib.h>
 
@@ -18,7 +18,7 @@ static void ketl_default_free(void* ptr, void* userInfo) {
 	free(ptr);
 }
 
-const KETLAllocator ketl_default_allocator = {
+const ketl_allocator ketl_default_allocator = {
 	&ketl_default_alloc,
 	&ketl_default_realloc,
 	&ketl_default_free,

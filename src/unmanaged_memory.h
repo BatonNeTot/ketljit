@@ -1,24 +1,24 @@
-﻿//🍲ketl
-#ifndef unmanaged_memory_h
-#define unmanaged_memory_h
+﻿//🫖ketl
+#ifndef ketl_unmanaged_memory_h
+#define ketl_unmanaged_memory_h
 
-#include "ketl/object_pool.h"
+#include "containers/object_pool.h"
 #include "ketl/utils.h"
 
-KETL_FORWARD(KETLUnmanagedMemoryPage);
+KETL_FORWARD(ketl_unmanaged_memory_page);
 
 KETL_DEFINE(KETLUnmanagedMemory) {
-	KETLObjectPool pagePool;
-	KETLUnmanagedMemoryPage* currentPage;
+	ketl_object_pool pagePool;
+	ketl_unmanaged_memory_page* currentPage;
 	uint64_t currentOffset;
 };
 
-void ketlInitUnmanagedMemory(KETLUnmanagedMemory* unmanagedMemory);
+void ketl_unmanaged_memory_init(KETLUnmanagedMemory* unmanagedMemory);
 
-void ketlDeinitUnmanagedMemory(KETLUnmanagedMemory* unmanagedMemory);
+void ketl_unmanaged_memory_deinit(KETLUnmanagedMemory* unmanagedMemory);
 
-uint8_t* ketlUnmanagedMemoryAllocate(KETLUnmanagedMemory* unmanagedMemory, uint64_t size);
+uint8_t* ketl_unmanaged_memory_allocate(KETLUnmanagedMemory* unmanagedMemory, uint64_t size);
 
-uint8_t* ketlUnmanagedMemoryReset(KETLUnmanagedMemory* unmanagedMemory);
+uint8_t* ketl_unmanaged_memory_reset(KETLUnmanagedMemory* unmanagedMemory);
 
-#endif /*unmanaged_memory_h*/
+#endif // ketl_unmanaged_memory_h

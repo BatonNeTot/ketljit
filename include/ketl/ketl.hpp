@@ -1,6 +1,6 @@
-﻿//🍲ketl
-#ifndef ketl_hpp
-#define ketl_hpp
+﻿//🫖ketl
+#ifndef ketl_ketl_hpp
+#define ketl_ketl_hpp
 
 extern "C" {
 #include "ketl/ketl.h"
@@ -31,30 +31,29 @@ namespace KETL {
 		}
 
 	private:
-		Function(KETLFunction* function) : _functionImpl(function) {}
+		Function(ketl_function* function) : _functionImpl(function) {}
 
 		friend State;
 
-		KETLFunction* _functionImpl;
+		ketl_function* _functionImpl;
 	};
 
 	class State {
 	public:
 
-		State() {
-			ketlInitState(&_stateImpl);
-		}
+		State()
+			: _stateImpl(ketl_state_create()) {}
 
 		~State() {
-			ketlDeinitState(&_stateImpl);
+			ketl_state_destroy(_stateImpl);
 		}
 
 		void defineVariable(const char* name, int64_t& variable) {
-			ketl_state_define_external_variable(&_stateImpl, name, i64(), &variable);
+			ketl_state_define_external_variable(_stateImpl, name, i64(), &variable);
 		}
 
 		int64_t& defineVariable(const char* name, int64_t&& initialValue) {
-			int64_t& variable = *reinterpret_cast<int64_t*>(ketl_state_define_internal_variable(&_stateImpl, name, i64()));
+			int64_t& variable = *reinterpret_cast<int64_t*>(ketl_state_define_internal_variable(_stateImpl, name, i64()));
 			variable = initialValue;
 			return variable;
 		}
@@ -65,29 +64,29 @@ namespace KETL {
 		}
 
 		Function compileFunction(const std::string &source) {
-			return ketlCompileFunction(&_stateImpl, source.c_str(), nullptr, 0);
+			return ketlCompileFunction(_stateImpl, source.c_str(), nullptr, 0);
 		}
 
-		Function compileFunction(const std::string &source, KETLParameter* parameters, uint64_t parametersCount) {
-			return ketlCompileFunction(&_stateImpl, source.c_str(), parameters, parametersCount);
+		Function compileFunction(const std::string &source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+			return ketlCompileFunction(_stateImpl, source.c_str(), parameters, parametersCount);
 		}
 
 		int64_t eval(const std::string &source) {
-			return ketl_state_eval(&_stateImpl, source.c_str());
+			return ketl_state_eval(_stateImpl, source.c_str());
 		}
 
-		KETLTypePtr i32() {
-			return KETLTypePtr{ reinterpret_cast<KETLTypeBase*>(&_stateImpl.primitives.i32_t) };
+		ketl_type_pointer i32() {
+			return ketl_state_get_type_i32(_stateImpl);
 		}
 
-		KETLTypePtr i64() {
-			return KETLTypePtr{ reinterpret_cast<KETLTypeBase*>(& _stateImpl.primitives.i64_t) };
+		ketl_type_pointer i64() {
+			return ketl_state_get_type_i64(_stateImpl);
 		}
 
 	private:
-		KETLState _stateImpl;
+		ketl_state* _stateImpl;
 	};
 
 }
 
-#endif /*ketl_h*/
+#endif // ketl_ketl_hpp

@@ -35,15 +35,15 @@ int main(int argc, char** argv) {
 
 		std::cout << ketlState.eval(source) << std::endl;
 
-		std::cout << ketlState.eval("return inside + 12;") << std::endl;
+		std::cout << ketlState.eval("return inside + 22;") << std::endl;
 
 		/*
 
 		int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
-		std::vector<KETLParameter> parameters = { 
-			//{"a", ketlState.i32(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
-			//{"b", ketlState.i32(), KETLVariableTraits{false, false, KETL_TRAIT_TYPE_RVALUE}},
+		std::vector<ketl_function_parameter> parameters = { 
+			//{"a", ketlState.i32(), ketl_variable_traits{false, false, KETL_TRAIT_TYPE_RVALUE}},
+			//{"b", ketlState.i32(), ketl_variable_traits{false, false, KETL_TRAIT_TYPE_RVALUE}},
 		};
 		KETL::Function function = ketlState.compile(source, parameters.data(), parameters.size());
 		if (!function) {

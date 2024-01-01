@@ -23,9 +23,6 @@ set_target_properties(${PROJECT_TARGET}
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib/$<CONFIG>"
 )
 
-add_subdirectory ("dependencies")
-target_link_libraries(${PROJECT_TARGET} ${PROJECT_LIBRARIES})
-
 target_compile_definitions(${PROJECT_TARGET} PRIVATE _AMD64_)
 
 target_include_directories(${PROJECT_TARGET} PUBLIC "include")

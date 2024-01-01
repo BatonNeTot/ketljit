@@ -1,5 +1,5 @@
-﻿//🍲ketl
-#include "compiler/ir_compiler.h"
+﻿//🫖ketl
+#include "ir_compiler.h"
 
 #include "compiler/ir_node.h"
 #include "compiler/ir_builder.h"
@@ -50,7 +50,7 @@ static uint64_t loadIntLiteralIntoRcx(uint8_t* buffer, int64_t value) {
     return sizeof(opcodesArray);
 }
 
-static uint64_t loadArgumentIntoEax(uint8_t* buffer, KETLIRArgument* argument, uint64_t stackUsage) {
+static uint64_t loadArgumentIntoEax(uint8_t* buffer, ketl_ir_argument* argument, uint64_t stackUsage) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
@@ -90,7 +90,7 @@ static uint64_t loadArgumentIntoEax(uint8_t* buffer, KETLIRArgument* argument, u
     return 0;
 }
 
-static uint64_t loadArgumentIntoRax(uint8_t* buffer, KETLIRArgument* argument, uint64_t stackUsage) {
+static uint64_t loadArgumentIntoRax(uint8_t* buffer, ketl_ir_argument* argument, uint64_t stackUsage) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
@@ -132,7 +132,7 @@ static uint64_t loadArgumentIntoRax(uint8_t* buffer, KETLIRArgument* argument, u
     return 0;
 }
 
-static uint64_t loadArgumentIntoEcx(uint8_t* buffer, KETLIRArgument* argument, uint64_t stackUsage) {
+static uint64_t loadArgumentIntoEcx(uint8_t* buffer, ketl_ir_argument* argument, uint64_t stackUsage) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
@@ -173,7 +173,7 @@ static uint64_t loadArgumentIntoEcx(uint8_t* buffer, KETLIRArgument* argument, u
     return 0;
 }
 
-static uint64_t loadArgumentIntoRcx(uint8_t* buffer, KETLIRArgument* argument, uint64_t stackUsage) {
+static uint64_t loadArgumentIntoRcx(uint8_t* buffer, ketl_ir_argument* argument, uint64_t stackUsage) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
@@ -216,7 +216,7 @@ static uint64_t loadArgumentIntoRcx(uint8_t* buffer, KETLIRArgument* argument, u
     return 0;
 }
 
-static uint64_t loadEaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
+static uint64_t loadEaxIntoArgument(uint8_t* buffer, ketl_ir_argument* argument) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
@@ -241,7 +241,7 @@ static uint64_t loadEaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
     return 0;
 }
 
-static uint64_t loadRaxIntoArgument(uint8_t* buffer, KETLIRArgument* argument) {
+static uint64_t loadRaxIntoArgument(uint8_t* buffer, ketl_ir_argument* argument) {
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: {
         const uint8_t opcodesArray[] =
@@ -276,10 +276,10 @@ static uint64_t compareRaxAndRcx(uint8_t* buffer) {
 }
 
 
-static uint64_t copyArgumentsToStack(uint8_t* buffer, KETLIRFunction* irFunction) {
+static uint64_t copyArgumentsToStack(uint8_t* buffer, ketl_ir_function* irFunction) {
     uint64_t length = 0;
-    KETLIROperation* itOperation = irFunction->operations;
-    KETLIRArgument* functionArgument = irFunction->arguments;
+    ketl_ir_operation* itOperation = irFunction->operations;
+    ketl_ir_argument* functionArgument = irFunction->arguments;
     if (!functionArgument) {
         return 0;
     }
@@ -499,13 +499,13 @@ static uint64_t copyArgumentsToStack(uint8_t* buffer, KETLIRFunction* irFunction
 KETL_DEFINE(JumpInfo) {
     uint64_t bufferOffset;
     uint64_t fromOffset;
-    KETLIROperation* to;
+    ketl_ir_operation* to;
 };
 
 
-KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFunction) {
-    ketlIntMapReset(&irCompiler->operationBufferOffsetMap);
-    ketlResetStack(&irCompiler->jumpList);
+ketl_function* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_function* irFunction) {
+    ketl_int_map_reset(&irCompiler->operationBufferOffsetMap);
+    ketl_stack_reset(&irCompiler->jumpList);
 
     uint64_t stackUsage = irFunction->stackUsage;
     stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
@@ -525,11 +525,11 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
         length += sizeof(opcodesArray);
     }
 
-    KETLIROperation* itOperation = irFunction->operations;
+    ketl_ir_operation* itOperation = irFunction->operations;
     for (uint64_t i = 0; i < irFunction->operationsCount; ++i) {
         {
             uint64_t* offset;
-            ketlIntMapGetOrCreate(&irCompiler->operationBufferOffsetMap, (KETLIntMapKey)&itOperation[i], &offset);
+            ketl_int_map_get_or_create(&irCompiler->operationBufferOffsetMap, (ketl_int_map_key)&itOperation[i], &offset);
             *offset = length;
         }
 
@@ -685,7 +685,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
                 length += sizeof(opcodesArray);
                 jumpInfo.fromOffset = length;
                 jumpInfo.to = itOperation[i].extraNext;
-                *(JumpInfo*)ketlPushOnStack(&irCompiler->jumpList) = jumpInfo;
+                *(JumpInfo*)ketl_stack_push(&irCompiler->jumpList) = jumpInfo;
             }
             break;
         }
@@ -717,7 +717,7 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             KETL_DEBUGBREAK();
         }
 
-        KETLIROperation* mainNext = itOperation[i].mainNext;
+        ketl_ir_operation* mainNext = itOperation[i].mainNext;
         if (mainNext != NULL && mainNext != &itOperation[i + 1]) {
             const uint8_t opcodesArray[] =
             {
@@ -730,16 +730,16 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
             length += sizeof(opcodesArray);
             jumpInfo.fromOffset = length;
             jumpInfo.to = itOperation[i].mainNext;
-            *(JumpInfo*)ketlPushOnStack(&irCompiler->jumpList) = jumpInfo;
+            *(JumpInfo*)ketl_stack_push(&irCompiler->jumpList) = jumpInfo;
         }
     }
 
     {
-        KETLStackIterator jumpIterator;
-        ketlInitStackIterator(&jumpIterator, &irCompiler->jumpList);
-        while (ketlIteratorStackHasNext(&jumpIterator)) {
-            JumpInfo* jumpInfo = ketlIteratorStackGetNext(&jumpIterator);
-            uint64_t* toOffset = ketlIntMapGet(&irCompiler->operationBufferOffsetMap, (KETLIntMapKey)jumpInfo->to);
+        ketl_stack_iterator jumpIterator;
+        ketl_stack_iterator_init(&jumpIterator, &irCompiler->jumpList);
+        while (ketl_stack_iterator_has_next(&jumpIterator)) {
+            JumpInfo* jumpInfo = ketl_stack_iterator_get_next(&jumpIterator);
+            uint64_t* toOffset = ketl_int_map_get(&irCompiler->operationBufferOffsetMap, (ketl_int_map_key)jumpInfo->to);
             *(int32_t*)(opcodesBuffer + jumpInfo->bufferOffset) = (int32_t)(*toOffset - jumpInfo->fromOffset);
         }
     }
@@ -753,17 +753,17 @@ KETLFunction* ketlCompileIR(KETLIRCompiler* irCompiler, KETLIRFunction* irFuncti
     printf("\n");
     //*/
 
-    return (KETLFunction*)ketlExecutableMemoryAllocate(&irCompiler->exeMemory, &opcodes, sizeof(opcodesBuffer), length);
+    return (ketl_function*)ketl_executable_memory_allocate(&irCompiler->exeMemory, &opcodes, sizeof(opcodesBuffer), length);
 }
 
-void ketlIRCompilerInit(KETLIRCompiler* irCompiler) {
-    ketlInitExecutableMemory(&irCompiler->exeMemory);
-    ketlInitIntMap(&irCompiler->operationBufferOffsetMap, sizeof(uint64_t), 16);
-    ketlInitStack(&irCompiler->jumpList, sizeof(JumpInfo), 16);
+void ketl_ir_compiler_init(ketl_ir_compiler* irCompiler) {
+    ketl_executable_memory_init(&irCompiler->exeMemory);
+    ketl_int_map_init(&irCompiler->operationBufferOffsetMap, sizeof(uint64_t), 16);
+    ketl_stack_init(&irCompiler->jumpList, sizeof(JumpInfo), 16);
 }
 
-void ketlIRCompilerDeinit(KETLIRCompiler* irCompiler) {
-    ketlDeinitStack(&irCompiler->jumpList);
-    ketlDeinitIntMap(&irCompiler->operationBufferOffsetMap);
-    ketlDeinitExecutableMemory(&irCompiler->exeMemory);
+void ketl_ir_compiler_deinit(ketl_ir_compiler* irCompiler) {
+    ketl_stack_deinit(&irCompiler->jumpList);
+    ketl_int_map_deinit(&irCompiler->operationBufferOffsetMap);
+    ketl_executable_memory_deinit(&irCompiler->exeMemory);
 }

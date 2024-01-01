@@ -1,6 +1,6 @@
 ﻿/*🍲Ketl🍲*/
-#ifndef check_tests_h
-#define check_tests_h
+#ifndef ketl_check_tests_h
+#define ketl_check_tests_h
 
 #include "compile_tricks.h"
 
@@ -15,4 +15,4 @@ void registerCheckTest(std::string_view&& name, CheckTestFunction&& test);
 
 void launchCheckTests();
 
-#endif // check_tests_h
+#endif // ketl_check_tests_h

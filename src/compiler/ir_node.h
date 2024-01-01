@@ -1,10 +1,10 @@
-﻿//🍲ketl
-#ifndef compiler_ir_node_h
-#define compiler_ir_node_h
+﻿//🫖ketl
+#ifndef ketl_compiler_ir_node_h
+#define ketl_compiler_ir_node_h
 
 #include "ketl/utils.h"
 
-typedef uint8_t KETLIRArgumentType;
+typedef uint8_t ketl_ir_argument_type;
 
 #define KETL_IR_ARGUMENT_TYPE_NONE 0
 #define KETL_IR_ARGUMENT_TYPE_STACK 1
@@ -30,7 +30,7 @@ typedef uint8_t KETLIRArgumentType;
 #define KETL_IR_ARGUMENT_TYPE_FLOAT32 16
 #define KETL_IR_ARGUMENT_TYPE_FLOAT64 17
 
-KETL_DEFINE(KETLIRArgument) {
+KETL_DEFINE(ketl_ir_argument) {
 	union {
 		uint64_t stack;
 		void* pointer;
@@ -50,12 +50,10 @@ KETL_DEFINE(KETLIRArgument) {
 		float float32;
 		double float64;
 	};
-	KETLIRArgumentType type;
+	ketl_ir_argument_type type;
 };
 
-typedef uint8_t KETLIROperationCode;
-
-
+typedef uint8_t ketl_ir_operation_code;
 
 #define KETL_IR_CODE_NONE 0
 
@@ -157,19 +155,19 @@ typedef uint8_t KETLIROperationCode;
 #define KETL_IR_CODE_RETURN_4_BYTES 81
 #define KETL_IR_CODE_RETURN_8_BYTES 82
 
-KETL_DEFINE(KETLIROperation) {
-	KETLIROperationCode code;
+KETL_DEFINE(ketl_ir_operation) {
+	ketl_ir_operation_code code;
 	uint32_t argumentCount;
-	KETLIRArgument** arguments;
-	KETLIROperation* mainNext;
-	KETLIROperation* extraNext;
+	ketl_ir_argument** arguments;
+	ketl_ir_operation* mainNext;
+	ketl_ir_operation* extraNext;
 };
 
-KETL_DEFINE(KETLIRFunction) {
+KETL_DEFINE(ketl_ir_function) {
 	uint64_t operationsCount;
 	uint64_t stackUsage;
-	KETLIROperation* operations;
-	KETLIRArgument* arguments;
+	ketl_ir_operation* operations;
+	ketl_ir_argument* arguments;
 };
 
-#endif /*compiler_ir_node_h*/
+#endif // ketl_compiler_ir_node_h

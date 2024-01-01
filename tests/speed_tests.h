@@ -1,6 +1,6 @@
 ﻿/*🍲Ketl🍲*/
-#ifndef speed_tests_h
-#define speed_tests_h
+#ifndef ketl_speed_tests_h
+#define ketl_speed_tests_h
 
 #include "compile_tricks.h"
 
@@ -17,4 +17,4 @@ void registerSpeedTest(std::string_view&& name, SpeedTestFunction&& test);
 
 void launchSpeedTests(uint64_t N);
 
-#endif // speed_tests_h
+#endif // ketl_speed_tests_h

@@ -1,103 +1,36 @@
-﻿//🍲ketl
-#ifndef ketl_h
-#define ketl_h
+﻿//🫖ketl
+#ifndef ketl_ketl_h
+#define ketl_ketl_h
 
-#include "function.h"
-#include "type_impl.h"
-#include "ketl/operators.h"
+#include "ketl/type.h"
+#include "ketl/variable.h"
+#include "ketl/function.h"
 
-#include "compiler/ir_compiler.h"
-#include "compiler/compiler.h"
-
-#include "ketl/atomic_strings.h"
-#include "ketl/object_pool.h"
-#include "ketl/int_map.h"
 #include "ketl/utils.h"
 
-KETL_DEFINE(KETLNamespace) {
-	KETLIntMap variables;
-	KETLIntMap namespaces;
-	KETLIntMap types;
-};
+KETL_FORWARD(ketl_state);
+KETL_FORWARD(ketl_type_parameters);
 
-KETL_DEFINE(KETLUnaryOperator) {
-	KETLIROperationCode code;
-	KETLVariableTraits inputTraits;
-	KETLVariableTraits outputTraits;
-	KETLTypePtr inputType;
-	KETLTypePtr outputType;
-	KETLUnaryOperator* next;
-};
+ketl_state* ketl_state_create();
 
-KETL_DEFINE(KETLBinaryOperator) {
-	KETLIROperationCode code;
-	KETLVariableTraits lhsTraits;
-	KETLVariableTraits rhsTraits;
-	KETLVariableTraits outputTraits;
-	KETLTypePtr lhsType;
-	KETLTypePtr rhsType;
-	KETLTypePtr outputType;
-	KETLBinaryOperator* next;
-};
+void ketl_state_destroy(ketl_state* state);
 
-KETL_DEFINE(KETLCastOperator) {
-	KETLIROperationCode code;
-	bool implicit;
-	KETLVariableTraits inputTraits;
-	KETLVariableTraits outputTraits;
-	KETLTypePtr outputType;
-	KETLCastOperator* next;
-};
+void ketl_state_define_external_variable(ketl_state* state, const char* name, ketl_type_pointer type, void* pointer);
 
-KETL_DEFINE(KETLState) {
-	KETLAtomicStrings strings;
-	KETLCompiler compiler;
-	KETLIRCompiler irCompiler;
-	KETLNamespace globalNamespace;
-	struct {
-		KETLTypePrimitive void_t;
-		KETLTypePrimitive bool_t;
-		KETLTypePrimitive i8_t;
-		KETLTypePrimitive i16_t;
-		KETLTypePrimitive i32_t;
-		KETLTypePrimitive i64_t;
-		KETLTypePrimitive u8_t;
-		KETLTypePrimitive u16_t;
-		KETLTypePrimitive u32_t;
-		KETLTypePrimitive u64_t;
-		KETLTypePrimitive f32_t;
-		KETLTypePrimitive f64_t;
-	} primitives;
+void* ketl_state_define_internal_variable(ketl_state* state, const char* name, ketl_type_pointer type);
 
-	KETLObjectPool unaryOperatorsPool;
-	KETLObjectPool binaryOperatorsPool;
-	KETLObjectPool castOperatorsPool;
-	KETLIntMap unaryOperators;
-	KETLIntMap binaryOperators;
-	KETLIntMap castOperators;
+ketl_type_pointer ketl_state_get_type_i32(ketl_state* state);
 
-	KETLObjectPool undefVarPool;
-	KETLObjectPool variablesPool;
+ketl_type_pointer ketl_state_get_type_i64(ketl_state* state);
 
-	KETLObjectPool typeParametersPool;
-	KETLObjectPool typeFunctionsPool;
-	KETLIntMap typeFunctionSearchMap;
-};
+ketl_type_pointer getFunctionType(ketl_state* state, ketl_type_parameters* parameters, uint64_t parametersCount);
 
-void ketlInitState(KETLState* state);
+ketl_function* ketlCompileFunction(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
 
-void ketlDeinitState(KETLState* state);
+ketl_variable* ketl_state_comple_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
 
-void ketl_state_define_external_variable(KETLState* state, const char* name, KETLTypePtr type, void* pointer);
+int64_t ketl_state_eval_local(ketl_state* state, const char* source);
 
-void* ketl_state_define_internal_variable(KETLState* state, const char* name, KETLTypePtr type);
+int64_t ketl_state_eval(ketl_state* state, const char* source);
 
-KETLTypePtr getFunctionType(KETLState* state, KETLTypeParameters* parameters, uint64_t parametersCount);
-
-KETLFunction* ketlCompileFunction(KETLState* state, const char* source, KETLParameter* parameters, uint64_t parametersCount);
-
-int64_t ketl_state_eval_local(KETLState* state, const char* source);
-
-int64_t ketl_state_eval(KETLState* state, const char* source);
-
-#endif /*ketl_h*/
+#endif // ketl_ketl_h

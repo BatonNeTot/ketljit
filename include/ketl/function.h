@@ -1,22 +1,20 @@
-﻿//🍲ketl
-#ifndef function_h
-#define function_h
+﻿//🫖ketl
+#ifndef ketl_function_h
+#define ketl_function_h
 
 #include "ketl/type.h"
 
 #include "ketl/utils.h"
 
-#include <inttypes.h>
+KETL_FORWARD(ketl_function);
+KETL_FORWARD(ketl_state);
 
-KETL_FORWARD(KETLFunction);
-KETL_FORWARD(KETLState);
-
-KETL_DEFINE(KETLParameter) {
+KETL_DEFINE(ketl_function_parameter) {
 	const char* name;
-	KETLTypePtr type;
-	KETLVariableTraits traits;
+	ketl_type_pointer type;
+	ketl_variable_traits traits;
 };
 
 #define KETL_CALL_FUNCTION(function, cast, ...) (((cast)(function))(__VA_ARGS__))
 
-#endif /*function_h*/
+#endif // ketl_function_h

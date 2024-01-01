@@ -1,8 +1,8 @@
-﻿//🍲ketl
+﻿//🫖ketl
 #include "ketl/function.h"
 
-#include "ketl/type_impl.h"
-#include "ketl/ketl.h"
+#include "type_impl.h"
+#include "ketl_impl.h"
 
 typedef int64_t(*t_function_with_argument)(int64_t);
 
@@ -12,7 +12,7 @@ typedef int64_t(*function_i64_t)();
 
 struct __function_convertor {
 	union {
-		KETLFunction* object;
+		ketl_function* object;
 		t_function_with_argument t_function_with_argument;
 		function_void_t function_void_t;
 		function_i64_t function_i64_t;
@@ -21,24 +21,24 @@ struct __function_convertor {
 
 #define CAST_FUNCTION(function, targetType) (((struct __function_convertor){{function}}).base.targetType)
 
-void ketlCallFunction(KETLFunction* function, void* returnPtr) {
+void ketlCallFunction(ketl_function* function, void* returnPtr) {
 	(void)returnPtr;
 	function_i64_t callableFunction = CAST_FUNCTION(function, function_i64_t);
 	callableFunction();
 }
 
-void ketlCallFunctionWithArgument(KETLFunction* function, void* returnPtr, int64_t argument) {
+void ketlCallFunctionWithArgument(ketl_function* function, void* returnPtr, int64_t argument) {
 	(void)returnPtr;
 	t_function_with_argument callableFunction = CAST_FUNCTION(function, t_function_with_argument);
 	callableFunction(argument);
 }
 
-void ketlCallFunctionOfType(KETLState* state, KETLFunction* function, void* returnPtr, KETLTypePtr type, ...) {
+void ketlCallFunctionOfType(ketl_state* state, ketl_function* function, void* returnPtr, ketl_type_pointer type, ...) {
 	if (type.base->kind != KETL_TYPE_KIND_FUNCTION) {
 		return;
 	}
 
-	KETLTypePtr returnType = type.function->parameters[0].type;
+	ketl_type_pointer returnType = type.function->parameters[0].type;
 	if (returnType.primitive == &state->primitives.void_t) {
 		if (type.function->parametersCount == 0) {
 			CAST_FUNCTION(function, function_void_t)();

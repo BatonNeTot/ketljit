@@ -1,24 +1,24 @@
-﻿//🍲ketl
-#ifndef executable_memory_h
-#define executable_memory_h
+﻿//🫖ketl
+#ifndef ketl_executable_memory_h
+#define ketl_executable_memory_h
 
-#include "ketl/object_pool.h"
+#include "containers/object_pool.h"
 #include "ketl/utils.h"
 
-KETL_FORWARD(KETLExecutableMemoryPage);
+KETL_FORWARD(ketl_executable_memory_page);
 
-KETL_DEFINE(KETLExecutableMemory) {
-	KETLObjectPool pagePool;
-	KETLExecutableMemoryPage* currentPage;
+KETL_DEFINE(ketl_executable_memory) {
+	ketl_object_pool pagePool;
+	ketl_executable_memory_page* currentPage;
 	uint32_t pageSize;
 	uint32_t pageSizeLog;
 	uint32_t currentOffset;
 };
 
-void ketlInitExecutableMemory(KETLExecutableMemory* exeMemory);
+void ketl_executable_memory_init(ketl_executable_memory* exeMemory);
 
-void ketlDeinitExecutableMemory(KETLExecutableMemory* exeMemory);
+void ketl_executable_memory_deinit(ketl_executable_memory* exeMemory);
 
-uint8_t* ketlExecutableMemoryAllocate(KETLExecutableMemory* exeMemory, const uint8_t** opcodes, uint64_t blocksize, uint64_t length);
+uint8_t* ketl_executable_memory_allocate(ketl_executable_memory* exeMemory, const uint8_t** opcodes, uint64_t blocksize, uint64_t length);
 
-#endif /*executable_memory_h*/
+#endif // ketl_executable_memory_h

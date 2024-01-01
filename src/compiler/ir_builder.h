@@ -1,112 +1,102 @@
-﻿//🍲ketl
-#ifndef compiler_ir_builder_h
-#define compiler_ir_builder_h
+﻿//🫖ketl
+#ifndef ketl_compiler_ir_builder_h
+#define ketl_compiler_ir_builder_h
 
 #include "ir_node.h"
 
-#include "ketl/compiler/syntax_node.h"
+#include "compiler/syntax_node.h"
 #include "ketl/type.h"
 #include "ketl/function.h"
+#include "ketl/variable.h"
 
-#include "ketl/object_pool.h"
-#include "ketl/int_map.h"
-#include "ketl/stack.h"
+#include "containers/object_pool.h"
+#include "containers/int_map.h"
+#include "containers/stack.h"
 
 #include "ketl/utils.h"
 
-KETL_FORWARD(KETLState);
-KETL_FORWARD(KETLNamespace);
+KETL_FORWARD(ketl_state);
+KETL_FORWARD(ketl_namespace);
+KETL_FORWARD(ketl_ir_variable);
+KETL_FORWARD(ketl_scoped_variable);
 
-KETL_DEFINE(KETLIRVariable) {
-	KETLTypePtr type;
-	KETLVariableTraits traits;
-	KETLIRArgument value;
-};
-
-KETL_DEFINE(IRUndefinedValue) {
-	KETLIRVariable* variable;
+KETL_DEFINE(ketl_ir_undefined_value) {
+	ketl_ir_variable* variable;
 	uint64_t scopeIndex;
-	IRUndefinedValue* next;
+	ketl_ir_undefined_value* next;
 };
 
-KETL_DEFINE(KETLIRScopedVariable) {
-	KETLIRVariable variable;
-	KETLIRScopedVariable* parent;
-	KETLIRScopedVariable* nextSibling;
-	KETLIRScopedVariable* firstChild;
+KETL_DEFINE(ketl_ir_undefined_delegate) {
+	ketl_ir_undefined_value* caller;
+	ketl_ir_undefined_value* arguments;
+	ketl_ir_undefined_value* next;
 };
 
-KETL_DEFINE(IRUndefinedDelegate) {
-	IRUndefinedValue* caller;
-	IRUndefinedValue* arguments;
-	IRUndefinedValue* next;
+KETL_DEFINE(ketl_ir_return_node) {
+	ketl_ir_operation* operation;
+	ketl_ir_undefined_delegate* returnVariable;
+	ketl_scoped_variable* tempVariable;
+	ketl_ir_return_node* next;
 };
 
-KETL_DEFINE(IRReturnNode) {
-	KETLIROperation* operation;
-	IRUndefinedDelegate* returnVariable;
-	KETLIRScopedVariable* tempVariable;
-	IRReturnNode* next;
+KETL_DEFINE(ketl_ir_builder) {
+	ketl_int_map variablesMap;
+
+	ketl_object_pool scopedVariablesPool;
+	ketl_object_pool variablesPool;
+	ketl_object_pool operationsPool;
+	ketl_object_pool udelegatePool;
+	ketl_object_pool uvaluePool;
+
+	ketl_object_pool argumentPointersPool;
+	ketl_object_pool argumentsPool;
+
+	ketl_object_pool castingPool;
+	ketl_object_pool castingReturnPool;
+
+	ketl_int_map operationReferMap;
+	ketl_int_map argumentsMap;
+	ketl_stack extraNextStack;
+
+	ketl_object_pool returnPool;
+
+	ketl_state* state;
 };
 
-KETL_DEFINE(KETLIRBuilder) {
-	KETLIntMap variablesMap;
-
-	KETLObjectPool scopedVariablesPool;
-	KETLObjectPool variablesPool;
-	KETLObjectPool operationsPool;
-	KETLObjectPool udelegatePool;
-	KETLObjectPool uvaluePool;
-
-	KETLObjectPool argumentPointersPool;
-	KETLObjectPool argumentsPool;
-
-	KETLObjectPool castingPool;
-	KETLObjectPool castingReturnPool;
-
-	KETLIntMap operationReferMap;
-	KETLIntMap argumentsMap;
-	KETLStack extraNextStack;
-
-	KETLObjectPool returnPool;
-
-	KETLState* state;
-};
-
-KETL_DEFINE(IROperationRange) {
-	KETLIROperation* root;
-	KETLIROperation* next;
+KETL_DEFINE(ketl_ir_operation_range) {
+	ketl_ir_operation* root;
+	ketl_ir_operation* next;
 };
 
 KETL_DEFINE(KETLIRFunctionWIP) {
-	KETLIRBuilder* builder;
-	IROperationRange operationRange;
+	ketl_ir_builder* builder;
+	ketl_ir_operation_range operationRange;
 
 	union {
 		struct {
-			KETLIRScopedVariable* stackRoot;
-			KETLIRScopedVariable* currentStack;
+			ketl_scoped_variable* stackRoot;
+			ketl_scoped_variable* currentStack;
 		} stack;
 		struct {
-			KETLIRScopedVariable* tempVariables;
-			KETLIRScopedVariable* localVariables;
+			ketl_scoped_variable* tempVariables;
+			ketl_scoped_variable* localVariables;
 		} vars;
 	};
 
 	uint64_t scopeIndex;
-	IRReturnNode* returnOperations;
+	ketl_ir_return_node* returnOperations;
 	bool buildFailed;
 };
 
-KETL_DEFINE(KETLIRFunctionDefinition) {
-	KETLIRFunction* function;
-	KETLTypePtr type;
+KETL_DEFINE(ketl_ir_function_definition) {
+	ketl_ir_function* function;
+	ketl_type_pointer type;
 };
 
-void ketlInitIRBuilder(KETLIRBuilder* irBuilder, KETLState* state);
+void ketl_ir_builder_init(ketl_ir_builder* irBuilder, ketl_state* state);
 
-void ketlDeinitIRBuilder(KETLIRBuilder* irBuilder);
+void ketl_ir_builder_deinit(ketl_ir_builder* irBuilder);
 
-KETLIRFunctionDefinition ketlBuildIR(KETLIRBuilder* irBuilder, KETLNamespace* ketlNamespace, KETLTypePtr returnType, KETLSyntaxNode* syntaxNodeRoot, KETLParameter* parameters, uint64_t parametersCount);
+ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ketl_namespace* ketlNamespace, ketl_type_pointer returnType, ketl_syntax_node* syntaxNodeRoot, ketl_function_parameter* parameters, uint64_t parametersCount);
 
-#endif /*compiler_ir_builder_h*/
+#endif // ketl_compiler_ir_builder_h
