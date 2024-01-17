@@ -40,7 +40,7 @@ void ketlCallFunctionOfType(ketl_state* state, ketl_function* function, void* re
 
 	ketl_type_pointer returnType = type.function->parameters[0].type;
 	if (returnType.primitive == &state->primitives.void_t) {
-		if (type.function->parametersCount == 0) {
+		if (type.function->parameterCount == 0) {
 			CAST_FUNCTION(function, function_void_t)();
 			return;
 		}
@@ -48,7 +48,7 @@ void ketlCallFunctionOfType(ketl_state* state, ketl_function* function, void* re
 
 	}
 	else {
-		if (type.function->parametersCount == 0) {
+		if (type.function->parameterCount == 0) {
 			*(int64_t*)returnPtr = CAST_FUNCTION(function, function_i64_t)();
 			return;
 		}

@@ -12,6 +12,7 @@ KETL_FORWARD(ketl_int_map_bucket_base);
 KETL_DEFINE(ketl_int_map) {
 	ketl_object_pool bucketPool;
 	ketl_int_map_bucket_base** buckets;
+	ketl_int_map_bucket_base* freeBuckets;
 	uint64_t size;
 	uint64_t capacityIndex;
 };

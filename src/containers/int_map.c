@@ -22,6 +22,7 @@ void ketl_int_map_init(ketl_int_map* map, size_t objectSize, size_t poolSize) {
 	ketl_int_map_bucket_base** buckets = map->buckets = malloc(arraySize);
 	// TODO use custom memset
 	memset(buckets, 0, arraySize);
+	map->freeBuckets = NULL;
 }
 
 void ketl_int_map_deinit(ketl_int_map* map) {
@@ -89,7 +90,12 @@ bool ketl_int_map_get_or_create(ketl_int_map* map, ketl_int_map_key key, void* p
 		buckets = newBuckets;
 	}
 
-	bucket = ketl_object_pool_get(&map->bucketPool);
+	bucket = map->freeBuckets;
+	if (bucket == NULL) {
+		bucket = ketl_object_pool_get(&map->bucketPool);
+	} else {
+		map->freeBuckets = bucket->next;
+	}
 
 	bucket->key = key;
 	bucket->next = buckets[index];
@@ -106,6 +112,7 @@ void ketl_int_map_reset(ketl_int_map* map) {
 	uint64_t arraySize = sizeof(ketl_int_map_bucket_base*) * capacity;
 	// TODO use custom memset
 	memset(map->buckets, 0, arraySize);
+	map->freeBuckets = NULL;
 }
 
 
@@ -172,6 +179,7 @@ void ketl_int_map_iterator_remove(ketl_int_map_iterator* iterator) {
 	
 	ketl_int_map_bucket_base* parent = buckets[i];
 	ketl_int_map_bucket_base* currentBucket = iterator->currentBucket;
+	ketl_int_map_bucket_base* removedBucket = currentBucket;
 	if (parent == currentBucket) {
 		buckets[i] = currentBucket = currentBucket->next;
 	}
@@ -181,6 +189,9 @@ void ketl_int_map_iterator_remove(ketl_int_map_iterator* iterator) {
 		}
 		parent->next = currentBucket = currentBucket->next;
 	}
+
+	removedBucket->next = iterator->map->freeBuckets;
+	iterator->map->freeBuckets = removedBucket;
 
 	if (currentBucket != NULL) {
 		iterator->currentBucket = currentBucket;

@@ -11,6 +11,7 @@
 
 #include "compiler/ir_compiler.h"
 #include "compiler/compiler.h"
+#include "heap_memory.h"
 
 #include "containers/atomic_strings.h"
 #include "containers/object_pool.h"
@@ -53,6 +54,8 @@ KETL_DEFINE(ketl_cast_operator) {
 
 KETL_DEFINE(ketl_state) {
 	ketl_atomic_strings strings;
+	ketl_heap_memory hmemory;
+
 	ketl_compiler compiler;
 	ketl_ir_compiler irCompiler;
 	ketl_namespace globalNamespace;

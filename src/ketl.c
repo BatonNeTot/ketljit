@@ -3,7 +3,6 @@
 
 #include "variable_impl.h"
 #include "compiler/ir_builder.h"
-
 #include "compiler/syntax_node.h"
 #include "ketl/type.h"
 
@@ -62,8 +61,8 @@ static ketl_type_function* getTypeFunction(ketl_state* state, ketl_int_map* type
 		ketl_type_function* function = ketl_object_pool_get(&state->typeFunctionsPool);
 		function->kind = KETL_TYPE_KIND_FUNCTION;
 		function->name = NULL; // TODO construct name
-		function->parameters = ketl_object_pool_get_array(&state->typeParametersPool, function->parametersCount = (uint32_t)(lastParameter + 1));
-		memcpy(function->parameters, parameters, sizeof(ketl_type_parameters) * function->parametersCount);
+		function->parameters = ketl_object_pool_get_array(&state->typeParametersPool, function->parameterCount = (uint32_t)(lastParameter + 1));
+		memcpy(function->parameters, parameters, sizeof(ketl_type_parameters) * function->parameterCount);
 		uint64_t offset = 0;
 		for (uint64_t i = 1u; i <= lastParameter; ++i) {
 			function->parameters[i].offset = offset;
@@ -103,24 +102,6 @@ static void deinitNamespace(ketl_namespace* namespace) {
 	}
 	
 	ketl_int_map_deinit(&namespace->namespaces);
-
-	{
-		ketl_int_map_iterator childrenIterator;
-		ketl_int_map_iterator_init(&childrenIterator, &namespace->variables);
-		while (ketl_int_map_iterator_has_next(&childrenIterator)) {
-			const char* name;
-			ketl_ir_undefined_value* child;
-			ketl_int_map_iterator_get(&childrenIterator, (ketl_int_map_key*)(&name), &child);
-
-			ketl_ir_variable variable = *child->variable;
-			if (variable.traits.values.type == KETL_TRAIT_TYPE_LVALUE) {
-				free(variable.value.pointer);
-			}
-
-			ketl_int_map_iterator_next(&childrenIterator);
-		}
-	}
-
 	ketl_int_map_deinit(&namespace->variables);
 	ketl_int_map_deinit(&namespace->types);
 }
@@ -256,18 +237,19 @@ void ketl_state_destroy(ketl_state* state) {
 	deinitNamespace(&state->globalNamespace);
 	ketl_ir_compiler_deinit(&state->irCompiler);
 	ketl_compiler_deinit(&state->compiler);
+
+	ketl_heap_memory_deinit(&state->hmemory);
 	ketl_atomic_strings_deinit(&state->strings);
 
 	free(state);
 }
 
-#include "containers/common.h"
-#include <stdio.h>
-
 ketl_state* ketl_state_create() {
 	ketl_state* state = malloc(sizeof(ketl_state));
 
 	ketl_atomic_strings_init(&state->strings, 16);
+	ketl_heap_memory_init(&state->hmemory);
+
 	ketl_compiler_init(&state->compiler, state);
 	ketl_ir_compiler_init(&state->irCompiler);
 	initNamespace(&state->globalNamespace);
@@ -399,7 +381,7 @@ void* ketl_state_define_internal_variable(ketl_state* state, const char* name, k
 	traits.values.isConst = false;
 	traits.values.isNullable = false;
 	traits.values.type = KETL_TRAIT_TYPE_LVALUE;
-	void* pointer = malloc(ketl_type_get_stack_size(traits, type));
+	void* pointer = ketl_heap_memory_allocate_root(&state->hmemory, type, traits);
 	ketlDefineVariable(state, name, type, traits, pointer);
 	return pointer;
 }

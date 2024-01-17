@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
 
 		std::cout << ketlState.eval("return inside + 22;") << std::endl;
 
-		/*
+		//*
 
 		int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 			//{"a", ketlState.i32(), ketl_variable_traits{false, false, KETL_TRAIT_TYPE_RVALUE}},
 			//{"b", ketlState.i32(), ketl_variable_traits{false, false, KETL_TRAIT_TYPE_RVALUE}},
 		};
-		KETL::Function function = ketlState.compile(source, parameters.data(), parameters.size());
+		KETL::Function function = ketlState.compileFunction(source, parameters.data(), parameters.size());
 		if (!function) {
 			std::cerr << "Can't compile source string" << std::endl;
 			return 0;
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
 
 		std::cout << function.call<int64_t>(10, 4) << std::endl;
 		std::cout << testVariable << std::endl;
-		*/
+		//*/
 	}
 
 	return 0;

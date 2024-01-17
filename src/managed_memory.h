@@ -2,20 +2,19 @@
 #ifndef ketl_managed_memory_h
 #define ketl_managed_memory_h
 
-#include "containers/object_pool.h"
+#include "type_impl.h"
+
 #include "ketl/utils.h"
 
-KETL_DEFINE(ketl_managed_memory) {
-	uint64_t pagePool;
-	uint64_t currentOffset;
+typedef void* (*ketl_mmemory_alloc_f)(ketl_type_pointer type, void* userInfo);
+typedef void (*ketl_mmemory_reg_unmanaged_f)(void* ptr, ketl_type_pointer type, void* userInfo);
+typedef void (*ketl_mmemory_add_ref_anchor_f)(void* ptr, void* anchor, void* userInfo);
+typedef void (*ketl_mmemory_destroy_f)(void* ptr, void* userInfo);
+
+KETL_DEFINE(ketl_mmemory) {
+	ketl_mmemory_alloc_f alloc;
+	ketl_mmemory_destroy_f destroy;
+	void* userInfo;
 };
-
-void ketl_managed_memory_init(ketl_managed_memory* managedMemory);
-
-void ketl_managed_memory_deinit(ketl_managed_memory* managedMemory);
-
-uint8_t* ketl_managed_memory_allocate(ketl_managed_memory* managedMemory, uint64_t size);
-
-uint8_t* ketl_managed_memory_reset(ketl_managed_memory* managedMemory);
 
 #endif // ketl_managed_memory_h
