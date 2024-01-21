@@ -17,11 +17,13 @@ int main(int argc, char** argv) {
 	(void)argc;
 	(void)argv;
 
-	//launchCheckTests();
+#if 1
+	launchCheckTests();
 #ifdef NDEBUG
 	launchSpeedTests(10000000);
 #else
-	//launchSpeedTests(10000);
+	launchSpeedTests(10000);
+#endif
 #endif
 
 	auto source = R"(

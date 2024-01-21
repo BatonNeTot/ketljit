@@ -213,62 +213,147 @@ static inline Literal parseLiteral(KETLIRFunctionWIP* wip, const char* value, si
 	return literal;
 }
 
-static inline void convertLiteralSize(ketl_ir_variable* variable, ketl_type_pointer targetType) {
-	switch (variable->type.primitive->size) {
-	case 1:
-		switch (targetType.primitive->size) {
-		case 2: variable->value.uint16 = variable->value.uint8;
-			break;
-		case 4: variable->value.uint32 = variable->value.uint8;
-			break;
-		case 8: variable->value.uint64 = variable->value.uint8;
-			break;
-		}
-		break;
-	case 2:
-		switch (targetType.primitive->size) {
-			// TODO warning
-		case 1: variable->value.uint8 = (uint8_t)variable->value.uint16;
-			break;
-		case 4: variable->value.uint32 = variable->value.uint16;
-			break;
-		case 8: variable->value.uint64 = variable->value.uint16;
-			break;
-		}
-		break;
-	case 4:
-		switch (targetType.primitive->size) {
-			// TODO warning
-		case 1: variable->value.uint8 = (uint8_t)variable->value.uint32;
-			break;
-			// TODO warning
-		case 2: variable->value.uint16 = (uint16_t)variable->value.uint32;
-			break;
-		case 8: variable->value.uint64 = variable->value.uint32;
-			break;
-		}
-		break;
-	case 8:
-		switch (targetType.primitive->size) {
-			// TODO warning
-		case 1: variable->value.uint8 = (uint8_t)variable->value.uint64;
-			break;
-			// TODO warning
-		case 2: variable->value.uint16 = (uint16_t)variable->value.uint64;
-			break;
-			// TODO warning
-		case 4: variable->value.uint32 = (uint32_t)variable->value.uint64;
-			break;
-		}
-		break;
+static inline bool isLiteralType(ketl_ir_argument* argument, ketl_type_pointer targetType, ketl_state* state) {
+	if (targetType.base->kind != KETL_TYPE_KIND_PRIMITIVE) {
+		return false;
 	}
-	variable->type = targetType;
+	if (targetType.primitive == &state->primitives.void_t
+		|| targetType.primitive == &state->primitives.bool_t) {
+		return false;
+	}
+	if (argument->type < KETL_IR_ARGUMENT_TYPE_INT8) {
+		return false;
+	}
+	return true;
+}
+
+static inline void convertLiteralSize(ketl_ir_variable* variable, ketl_type_pointer targetType, ketl_state* state) {
+	bool floatFlag = false;
+	uint64_t intValue;
+	double floatValue;
+
+
+	switch (variable->value.type) {
+	case KETL_IR_ARGUMENT_TYPE_INT8:
+		intValue = variable->value.int8;
+		break;
+	case KETL_IR_ARGUMENT_TYPE_INT16:
+		intValue = variable->value.int16;
+		break;
+	case KETL_IR_ARGUMENT_TYPE_INT32:
+		intValue = variable->value.int32;
+		break;
+	case KETL_IR_ARGUMENT_TYPE_INT64:
+		intValue = variable->value.int64;
+		break;
+
+	case KETL_IR_ARGUMENT_TYPE_UINT8:
+		intValue = variable->value.uint8;
+		break;
+	case KETL_IR_ARGUMENT_TYPE_UINT16:
+		intValue = variable->value.uint16;
+		break;
+	case KETL_IR_ARGUMENT_TYPE_UINT32:
+		intValue = variable->value.uint32;
+		break;
+	case KETL_IR_ARGUMENT_TYPE_UINT64:
+		intValue = variable->value.uint64;
+		break;
+
+	case KETL_IR_ARGUMENT_TYPE_FLOAT32:
+		floatFlag = true;
+		floatValue = variable->value.float32;
+		break;
+	case KETL_IR_ARGUMENT_TYPE_FLOAT64:
+		floatFlag = true;
+		floatValue = variable->value.float64;
+		break;
+	KETL_NODEFAULT()
+	}
+
+	switch (targetType.primitive->size) {
+	case 1: 
+		if (targetType.primitive == &state->primitives.i8_t) {
+			if (!floatFlag) {
+				variable->value.int8 = intValue;
+			} else {
+				variable->value.int8 = floatValue;
+			}
+		} else /* if (targetType.primitive == &state->primitives.u8_t) */ {
+			if (!floatFlag) {
+				variable->value.uint8 = intValue;
+			} else {
+				variable->value.uint8 = floatValue;
+			}
+		}
+		return;
+	case 2: 
+		if (targetType.primitive == &state->primitives.i16_t) {
+			if (!floatFlag) {
+				variable->value.int16 = intValue;
+			} else {
+				variable->value.int16 = floatValue;
+			}
+		} else /* if (targetType.primitive == &state->primitives.u16_t) */ {
+			if (!floatFlag) {
+				variable->value.uint16 = intValue;
+			} else {
+				variable->value.uint16 = floatValue;
+			}
+		}
+		return;
+	case 4:
+		if (targetType.primitive == &state->primitives.i32_t) {
+			if (!floatFlag) {
+				variable->value.int32 = intValue;
+			} else {
+				variable->value.int32 = floatValue;
+			}
+		} else if (targetType.primitive == &state->primitives.u32_t) {
+			if (!floatFlag) {
+				variable->value.uint32 = intValue;
+			} else {
+				variable->value.uint32 = floatValue;
+			}
+		} else /* if (targetType.primitive == &state->primitives.f32_t) */ {
+			if (!floatFlag) {
+				variable->value.float32 = intValue;
+			} else {
+				variable->value.float32 = floatValue;
+			}
+		}
+		return;
+	case 8:
+		if (targetType.primitive == &state->primitives.i64_t) {
+			if (!floatFlag) {
+				variable->value.int64 = intValue;
+			} else {
+				variable->value.int64 = floatValue;
+			}
+		} else if (targetType.primitive == &state->primitives.u64_t) {
+			if (!floatFlag) {
+				variable->value.uint64 = intValue;
+			} else {
+				variable->value.uint64 = floatValue;
+			}
+		} else /* if (targetType.primitive == &state->primitives.f64_t) */ {
+			if (!floatFlag) {
+				variable->value.float64 = intValue;
+			} else {
+				variable->value.float64 = floatValue;
+			}
+		}
+		return;
+	KETL_NODEFAULT()
+	}
 }
 
 static void convertValues(KETLIRFunctionWIP* wip, ketl_ir_operation_range* operationRange, CastingOption* castingOption) {
-	if (castingOption->variable->traits.values.type == KETL_TRAIT_TYPE_LITERAL) {
-		convertLiteralSize(castingOption->variable,
-			castingOption->operator ? castingOption->operator->outputType : castingOption->variable->type);
+	ketl_ir_variable* variable = castingOption->variable;
+	ketl_type_pointer targetType = castingOption->operator ? castingOption->operator->outputType : castingOption->variable->type;
+	if (isLiteralType(&variable->value, targetType, wip->builder->state)) {
+		convertLiteralSize(variable, targetType, wip->builder->state);
+		variable->type = targetType;
 	}
 	else {
 		if (castingOption == NULL || castingOption->operator == NULL) {
@@ -302,7 +387,7 @@ static TypeCastingTargetList possibleCastingForValue(ketl_ir_builder* irBuilder,
 	TypeCastingTargetList targets;
 	targets.begin = targets.last = NULL;
 
-	bool numberLiteral = variable->traits.values.type == KETL_TRAIT_TYPE_LITERAL && variable->type.base->kind == KETL_TYPE_KIND_PRIMITIVE;
+	bool numberLiteral = isLiteralType(&variable->value, variable->type, irBuilder->state);
 #define MAX_SIZE_OF_NUMBER_LITERAL 8
 
 	ketl_cast_operator** castOperators = ketl_int_map_get(&irBuilder->state->castOperators, (ketl_int_map_key)variable->type.base);
