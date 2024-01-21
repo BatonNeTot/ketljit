@@ -4,26 +4,17 @@
 
 #include "ketl/utils.h"
 
-typedef uint8_t ketl_trait_type;
-
-#define KETL_TRAIT_TYPE_LITERAL 0
-#define KETL_TRAIT_TYPE_LVALUE 1
-#define KETL_TRAIT_TYPE_RVALUE 2
-#define KETL_TRAIT_TYPE_REF 3
-#define KETL_TRAIT_TYPE_REF_IN 4
-
 KETL_DEFINE(ketl_variable_traits) {
 	union {
 		struct {
 			bool isNullable : 1;
 			bool isConst : 1;
-			ketl_trait_type type : 3;
 		} values;
-		uint8_t hash : 5;
+		uint8_t hash : 2;
 	};
 };
 
-#define KETL_VARIABLE_TRAIT_HASH_COUNT 20
+#define KETL_VARIABLE_TRAIT_HASH_COUNT 4
 
 KETL_FORWARD(ketl_type_base);
 KETL_FORWARD(ketl_type_primitive);
@@ -43,8 +34,8 @@ KETL_DEFINE(ketl_type_pointer) {
 	};
 };
 
-uint64_t ketl_type_get_stack_size(ketl_variable_traits traits, ketl_type_pointer type);
+uint64_t ketl_type_get_stack_size(ketl_type_pointer type);
 
-uint64_t ketl_type_get_size(ketl_variable_traits traits, ketl_type_pointer type);
+uint64_t ketl_type_get_size(ketl_type_pointer type);
 
 #endif // ketl_type_h

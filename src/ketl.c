@@ -66,7 +66,7 @@ static ketl_type_function* getTypeFunction(ketl_state* state, ketl_int_map* type
 		uint64_t offset = 0;
 		for (uint64_t i = 1u; i <= lastParameter; ++i) {
 			function->parameters[i].offset = offset;
-			offset += ketl_type_get_stack_size(function->parameters[i].traits, function->parameters[i].type);
+			offset += ketl_type_get_stack_size(function->parameters[i].type);
 		}
 		return function;
 	}
@@ -125,7 +125,6 @@ static void registerPrimitiveBinaryOperator(ketl_state* state, ketl_operator_cod
 	ketl_binary_operator operator;
 	ketl_variable_traits traits;
 
-	traits.values.type = KETL_TRAIT_TYPE_REF_IN;
 	traits.values.isNullable = false;
 	traits.values.isConst = true;
 
@@ -134,7 +133,6 @@ static void registerPrimitiveBinaryOperator(ketl_state* state, ketl_operator_cod
 	operator.lhsTraits = traits;
 	operator.rhsTraits = traits;
 	operator.outputTraits = traits;
-	operator.outputTraits.values.type = KETL_TRAIT_TYPE_RVALUE;
 
 	operator.lhsType.primitive = type;
 	operator.rhsType.primitive = type;
@@ -155,7 +153,6 @@ static void registerPrimitiveComparisonOperator(ketl_state* state, ketl_operator
 	ketl_binary_operator operator;
 	ketl_variable_traits traits;
 
-	traits.values.type = KETL_TRAIT_TYPE_REF_IN;
 	traits.values.isNullable = false;
 	traits.values.isConst = true;
 
@@ -164,7 +161,6 @@ static void registerPrimitiveComparisonOperator(ketl_state* state, ketl_operator
 	operator.lhsTraits = traits;
 	operator.rhsTraits = traits;
 	operator.outputTraits = traits;
-	operator.outputTraits.values.type = KETL_TRAIT_TYPE_RVALUE;
 
 	operator.lhsType.primitive = type;
 	operator.rhsType.primitive = type;
@@ -185,7 +181,6 @@ static void registerPrimitiveCastOperator(ketl_state* state, ketl_type_primitive
 	ketl_cast_operator operator;
 	ketl_variable_traits traits;
 
-	traits.values.type = KETL_TRAIT_TYPE_REF_IN;
 	traits.values.isNullable = false;
 	traits.values.isConst = true;
 
@@ -193,7 +188,6 @@ static void registerPrimitiveCastOperator(ketl_state* state, ketl_type_primitive
 
 	operator.inputTraits = traits;
 	operator.outputTraits = traits;
-	operator.outputTraits.values.type = KETL_TRAIT_TYPE_RVALUE;
 
 	operator.outputType.primitive = targetType;
 	operator.implicit = implicit;
@@ -372,7 +366,6 @@ void ketl_state_define_external_variable(ketl_state* state, const char* name, ke
 	ketl_variable_traits traits;
 	traits.values.isConst = false;
 	traits.values.isNullable = false;
-	traits.values.type = KETL_TRAIT_TYPE_REF;
 	ketlDefineVariable(state, name, type, traits, pointer);
 }
 
@@ -380,7 +373,6 @@ void* ketl_state_define_internal_variable(ketl_state* state, const char* name, k
 	ketl_variable_traits traits;
 	traits.values.isConst = false;
 	traits.values.isNullable = false;
-	traits.values.type = KETL_TRAIT_TYPE_LVALUE;
 	void* pointer = ketl_heap_memory_allocate_root(&state->hmemory, type, traits);
 	ketlDefineVariable(state, name, type, traits, pointer);
 	return pointer;

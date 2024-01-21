@@ -595,7 +595,6 @@ static ketl_ir_undefined_delegate* buildIRCommandTree(KETLIRFunctionWIP* wip, ke
 		variable->type = literal.type;
 		variable->traits.values.isNullable = false;
 		variable->traits.values.isConst = true;
-		variable->traits.values.type = KETL_TRAIT_TYPE_LITERAL;
 		variable->value = literal.value;
 
 		return wrapInDelegateValue(wip->builder, variable);
@@ -784,7 +783,6 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, ketl_ir_operation_r
 	// TODO set traits properly from syntax node
 	variable->variable.traits.values.isConst = false;
 	variable->variable.traits.values.isNullable = false;
-	variable->variable.traits.values.type = KETL_TRAIT_TYPE_LVALUE;
 
 	CastingOption* expressionCasting;
 
@@ -812,7 +810,7 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, ketl_ir_operation_r
 
 	ketl_ir_operation* operation = createOperationFromRange(wip->builder, operationRange);
 
-	switch (ketl_type_get_stack_size(variable->variable.traits, variable->variable.type)) {
+	switch (ketl_type_get_stack_size(variable->variable.type)) {
 	case 1:
 		operation->code = KETL_IR_CODE_COPY_1_BYTE;
 		break;
@@ -1102,7 +1100,7 @@ static inline uint64_t bakeStackUsage(ketl_scoped_variable* stackRoot) {
 	KETL_FOREVER{
 		it->variable.value.stack = currentStackOffset;
 
-		uint64_t size = ketl_type_get_stack_size(it->variable.traits, it->variable.type);
+		uint64_t size = ketl_type_get_stack_size(it->variable.type);
 		currentStackOffset += size;
 		if (maxStackOffset < currentStackOffset) {
 			maxStackOffset = currentStackOffset;
@@ -1118,7 +1116,7 @@ static inline uint64_t bakeStackUsage(ketl_scoped_variable* stackRoot) {
 					return maxStackOffset;
 				}
 				it = it->parent;
-				size = ketl_type_get_stack_size(it->variable.traits, it->variable.type);
+				size = ketl_type_get_stack_size(it->variable.type);
 				currentStackOffset -= size;
 			}
 			it = it->nextSibling;
@@ -1161,7 +1159,7 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 			parameter.traits = parameters[i].traits;
 			parameter.type = parameters[i].type;
 
-			uint64_t stackTypeSize = ketl_type_get_stack_size(parameter.traits, parameter.type);
+			uint64_t stackTypeSize = ketl_type_get_stack_size(parameter.type);
 
 			switch (stackTypeSize) {
 			case 1:
@@ -1378,7 +1376,7 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 
 			ketl_ir_operation* operation = createLastOperationFromRange(&innerRange);
 
-			switch (ketl_type_get_stack_size(expressionVarible->traits, expressionVarible->type)) {
+			switch (ketl_type_get_stack_size(expressionVarible->type)) {
 			case 1:
 				operation->code = KETL_IR_CODE_RETURN_1_BYTE;
 				break;
@@ -1540,7 +1538,6 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 	typeParameters[0].type = returnType;
 	typeParameters[0].traits.values.isNullable = false;
 	typeParameters[0].traits.values.isConst = false;
-	typeParameters[0].traits.values.type = KETL_TRAIT_TYPE_RVALUE;
 	for (uint64_t i = 1u; i < parametersCount; ++i) {
 		typeParameters[i].type = parameters[i - 1].type;
 		typeParameters[i].traits = parameters[i - 1].traits;

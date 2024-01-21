@@ -97,7 +97,7 @@ void ketl_heap_memory_deinit(ketl_heap_memory* hmemory) {
 
 static ketl_heap_mamory_variable* allocate_node(ketl_heap_memory* hmemory, ketl_type_pointer type, ketl_variable_traits traits) {
     ketl_heap_mamory_variable variable;
-    variable.ptr = malloc(ketl_type_get_size(traits, type));
+    variable.ptr = malloc(ketl_type_get_size(type));
     variable.type = type;
     variable.traits = traits;
     variable.managedFlag = true;
