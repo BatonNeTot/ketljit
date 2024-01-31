@@ -26,41 +26,45 @@ int main(int argc, char** argv) {
 #endif
 #endif
 
-	auto source = R"(
+	auto source1 = R"(
 		i64 inside := 7 + 6;
 		return inside;
 )";
-	(void)source;
+
+	auto source2 = R"(
+		i64 sum := a + b;
+		if (sum != 5) {
+			test := sum;
+		}
+		return sum;
+)";
 
 	for (auto i = 0u; i < 1; ++i) {
 		KETL::State ketlState;
 
-		std::cout << ketlState.eval(source) << std::endl;
+		std::cout << (ketlState.eval(source1) == 13) << std::endl;
 
-		std::cout << ketlState.eval("return inside + 22;") << std::endl;
-
-		//*
+		std::cout << (ketlState.eval("return inside + 22;") == 35) << std::endl;
 
 		int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
 		std::vector<ketl_function_parameter> parameters = { 
-			//{"a", ketlState.i32(), ketl_variable_traits{false, false, KETL_TRAIT_TYPE_RVALUE}},
-			//{"b", ketlState.i32(), ketl_variable_traits{false, false, KETL_TRAIT_TYPE_RVALUE}},
+			{"a", ketlState.i32(), ketl_variable_traits{false, false}},
+			{"b", ketlState.i32(), ketl_variable_traits{false, false}},
 		};
-		KETL::Function function = ketlState.compileFunction(source, parameters.data(), parameters.size());
+		KETL::Function function = ketlState.compileFunction(source2, parameters.data(), parameters.size());
 		if (!function) {
 			std::cerr << "Can't compile source string" << std::endl;
 			return 0;
 		}
 
-		std::cout << function.call<int64_t>(2, 3) << std::endl;
-		std::cout << testVariable << std::endl;
+		std::cout << (function.call<int64_t>(2, 3) == 5) << std::endl;
+		std::cout << (testVariable == 4) << std::endl;
 
 		testVariable = 5;
 
-		std::cout << function.call<int64_t>(10, 4) << std::endl;
-		std::cout << testVariable << std::endl;
-		//*/
+		std::cout << (function.call<int64_t>(10, 4) == 14) << std::endl;
+		std::cout << (testVariable == 14) << std::endl;
 	}
 
 	return 0;

@@ -408,7 +408,7 @@ ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespac
 
 	// TODO optimization on ir
 
-	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function);
+	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, irFunction.type.function->parameters + 1, irFunction.type.function->parameterCount - 1);
 	free(irFunction.function);
 	return function;
 }
@@ -426,7 +426,7 @@ ketl_variable* ketl_state_comple_function(ketl_state* state, const char* source,
 
 	// TODO optimization on ir
 
-	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function);
+	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, irFunction.type.function->parameters + 1, irFunction.type.function->parameterCount - 1);
 	(void)function;
 	free(irFunction.function);
 

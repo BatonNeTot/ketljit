@@ -2,6 +2,8 @@
 #ifndef ketl_compiler_ir_compiler_h
 #define ketl_compiler_ir_compiler_h
 
+#include "../type_impl.h"
+
 #include "ketl/utils.h"
 
 #include "executable_memory.h"
@@ -21,6 +23,6 @@ void ketl_ir_compiler_init(ketl_ir_compiler* irCompiler);
 
 void ketl_ir_compiler_deinit(ketl_ir_compiler* irCompiler);
 
-ketl_function* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_function* irFunction);
+ketl_function* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_function* irFunction, ketl_type_parameters* parameters, uint16_t parameterCount);
 
 #endif // ketl_compiler_ir_compiler_h

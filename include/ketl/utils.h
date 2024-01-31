@@ -82,7 +82,7 @@
     #define KETL_NODEFAULT() default: __assume(0);
 #else
     // This code is supposed to be unreachable, so assert
-    #define KETL_NODEFAULT() default: //assert(0) TODO assert
+    #define KETL_NODEFAULT() default: KETL_DEBUGBREAK(); //TODO assert
 #endif
 
 #define KETL_NULL_TERMINATED_LENGTH SIZE_MAX

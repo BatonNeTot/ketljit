@@ -647,7 +647,7 @@ static ketl_ir_undefined_delegate* buildIRCommandTree(KETLIRFunctionWIP* wip, ke
 
 		return wrapInDelegateValue(wip->builder, &resultVariable->variable);;
 	}
-	KETL_NODEFAULT();
+	KETL_NODEFAULT()
 	KETL_DEBUGBREAK();
 	}
 	return NULL;
@@ -1160,24 +1160,9 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 			parameter.type = parameters[i].type;
 
 			uint64_t stackTypeSize = ketl_type_get_stack_size(parameter.type);
-
-			switch (stackTypeSize) {
-			case 1:
-				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_1_BYTE;
-				break;
-			case 2:
-				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_2_BYTES;
-				break;
-			case 4:
-				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_4_BYTES;
-				break;
-			case 8:
-				parameter.value.type = KETL_IR_ARGUMENT_TYPE_ARGUMENT_8_BYTES;
-				break;
-			KETL_NODEFAULT()
-				KETL_DEBUGBREAK();
-			}
-			parameter.value.stack = currentStackOffset;
+			
+			parameter.value.type = KETL_IR_ARGUMENT_TYPE_STACK;
+			parameter.value.stack = sizeof(void*) + currentStackOffset;
 
 			currentStackOffset += stackTypeSize;
 
@@ -1491,7 +1476,9 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
  	functionDefinition.function = (ketl_ir_function*)rawPointer;
 	rawPointer += sizeof(ketl_ir_function);
 
-	functionDefinition.function->stackUsage = maxStackOffset;
+	uint64_t stackUsage = maxStackOffset;
+    stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
+	functionDefinition.function->stackUsage = stackUsage;
 
 	functionDefinition.function->arguments = (ketl_ir_argument*)rawPointer;
 	rawPointer += sizeof(ketl_ir_argument) * argumentsCount;
@@ -1541,6 +1528,7 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 	for (uint64_t i = 1u; i < parametersCount; ++i) {
 		typeParameters[i].type = parameters[i - 1].type;
 		typeParameters[i].traits = parameters[i - 1].traits;
+		functionDefinition.function->arguments[i - 1].stack += stackUsage;
 	}
 	functionDefinition.type = getFunctionType(irBuilder->state, typeParameters, parametersCount);
 	free(typeParameters);
