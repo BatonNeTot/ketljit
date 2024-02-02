@@ -18,12 +18,20 @@ namespace KETL {
 
 		template <class R, class... Args>
 		R call(Args... args) {
-			return KETL_CALL_FUNCTION(_functionImpl, R(*)(Args...), args...);
+			if constexpr (sizeof...(Args) == 0) {
+				return KETL_CALL_FUNCTION(_functionImpl, R);
+			} else {
+				return KETL_CALL_FUNCTION_ARGS(_functionImpl, R, args...);
+			}
 		}
 
 		template <class... Args>
 		void callVoid(Args... args) {
-			KETL_CALL_FUNCTION(_functionImpl, void(*)(Args...), args...);
+			if constexpr (sizeof...(Args) == 0) {
+				return KETL_CALL_FUNCTION(_functionImpl, void);
+			} else {
+				return KETL_CALL_FUNCTION_ARGS(_functionImpl, void, args...);
+			}
 		}
 
 		explicit operator bool() {

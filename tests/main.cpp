@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
 		i64 inside := 7 + 6;
 		return inside;
 )";
+	(void)source1;
 
 	auto source2 = R"(
 		i64 sum := a + b;
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
 
 	for (auto i = 0u; i < 1; ++i) {
 		KETL::State ketlState;
-
+		
 		std::cout << (ketlState.eval(source1) == 13) << std::endl;
 
 		std::cout << (ketlState.eval("return inside + 22;") == 35) << std::endl;
@@ -58,13 +59,17 @@ int main(int argc, char** argv) {
 			return 0;
 		}
 
-		std::cout << (function.call<int64_t>(2, 3) == 5) << std::endl;
-		std::cout << (testVariable == 4) << std::endl;
+		{
+			auto result = function.call<int64_t>(2, 3);
+			std::cout << (result == 5) << std::endl;
+			std::cout << (testVariable == 4) << std::endl;
+		}
 
-		testVariable = 5;
-
-		std::cout << (function.call<int64_t>(10, 4) == 14) << std::endl;
-		std::cout << (testVariable == 14) << std::endl;
+		{
+			auto result = function.call<int64_t>(10, 4);
+			std::cout << (result == 14) << std::endl;
+			std::cout << (testVariable == 14) << std::endl;
+		}
 	}
 
 	return 0;

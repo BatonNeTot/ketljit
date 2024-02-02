@@ -17,6 +17,7 @@ KETL_DEFINE(ketl_variable_traits) {
 #define KETL_VARIABLE_TRAIT_HASH_COUNT 4
 
 KETL_FORWARD(ketl_type_base);
+KETL_FORWARD(ketl_type_meta);
 KETL_FORWARD(ketl_type_primitive);
 KETL_FORWARD(ketl_type_function);
 KETL_FORWARD(ketl_type_function_class);
@@ -26,6 +27,7 @@ KETL_FORWARD(ketl_type_interface);
 KETL_DEFINE(ketl_type_pointer) {
 	union {
 		ketl_type_base* base;
+		ketl_type_meta* meta;
 		ketl_type_primitive* primitive;
 		ketl_type_function* function;
 		ketl_type_function_class* functionClass;

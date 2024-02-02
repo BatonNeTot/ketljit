@@ -7,21 +7,26 @@
 #include "containers/int_map.h"
 #include "ketl/utils.h"
 
-#define KETL_CREATE_TYPE_PTR(base_ptr) ((ketl_type_pointer){{(ketl_type_base*) (base_ptr)}})
+#define KETL_CREATE_TYPE_PTR(base_ptr) ((ketl_type_pointer){.base = (ketl_type_base*) (base_ptr)})
 
 typedef uint8_t ketl_type_kind;
 
-#define KETL_TYPE_KIND_PRIMITIVE 0
-#define KETL_TYPE_KIND_FUNCTION 1
-#define KETL_TYPE_KIND_FUNCTION_CLASS 2
-#define KETL_TYPE_KIND_CLASS 3
-#define KETL_TYPE_KIND_INTERFACE 4
-
-// TODO replace different fields, methods etc. with unifyed "named entity" of different types, like types now
+#define KETL_TYPE_KIND_META 0
+#define KETL_TYPE_KIND_PRIMITIVE 1
+#define KETL_TYPE_KIND_FUNCTION 2
+#define KETL_TYPE_KIND_FUNCTION_CLASS 3
+#define KETL_TYPE_KIND_CLASS 4
+#define KETL_TYPE_KIND_INTERFACE 5
 
 KETL_DEFINE(ketl_type_base) {
 	const char* name;
 	ketl_type_kind kind;
+};
+
+KETL_DEFINE(ketl_type_meta) {
+	const char* name;
+	ketl_type_kind kind;
+	uint32_t size;
 };
 
 KETL_DEFINE(ketl_type_primitive) {

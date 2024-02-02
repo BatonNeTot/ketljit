@@ -1152,7 +1152,7 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 	ketl_ir_variable** parameterArguments = NULL;
 	if (parameters && parametersCount) {
 		parameterArguments = malloc(sizeof(ketl_ir_variable*) * parametersCount);
-		uint64_t currentStackOffset = 0;
+		uint64_t currentStackOffset = sizeof(void*); // functionClass first and always
 		for (uint64_t i = 0u; i < parametersCount; ++i) {
 			ketl_ir_variable parameter;
 
@@ -1532,6 +1532,21 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 	}
 	functionDefinition.type = getFunctionType(irBuilder->state, typeParameters, parametersCount);
 	free(typeParameters);
+
+	ketl_type_function_class* functionClass = ketl_heap_memory_allocate(&irBuilder->state->hmemory, 
+		KETL_CREATE_TYPE_PTR(&irBuilder->state->metaTypes.functionClass)); 
+
+	*functionClass = (ketl_type_function_class){
+		.name = functionDefinition.type.function->name,
+		.kind = KETL_TYPE_KIND_FUNCTION_CLASS,
+		.staticFieldCount = 0,
+		.fieldCount = 0,
+		.size = sizeof(void*),
+		.functionType = functionDefinition.type.function,
+		.staticFields = NULL,
+		.fields = NULL,
+	};
+	functionDefinition.type.functionClass = functionClass;
 
 	return functionDefinition;
 }

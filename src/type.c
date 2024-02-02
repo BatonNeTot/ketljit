@@ -9,6 +9,9 @@ uint64_t ketl_type_get_stack_size(ketl_type_pointer type) {
 
 uint64_t ketl_type_get_size(ketl_type_pointer type) {
 	switch (type.base->kind) {
+		case KETL_TYPE_KIND_META: {
+			return type.meta->size;
+		}
 		case KETL_TYPE_KIND_PRIMITIVE: {
 			return type.primitive->size;
 		}

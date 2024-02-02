@@ -10,10 +10,10 @@
 
 #include <stdio.h>
 
-#define KETL_SIZE_8B    0
-#define KETL_SIZE_16B   1
-#define KETL_SIZE_32B   2
-#define KETL_SIZE_64B   3
+#define KETL_SIZE_8B    1
+#define KETL_SIZE_16B   2
+#define KETL_SIZE_32B   4
+#define KETL_SIZE_64B   8
 
 #define KETL_REG_AX     0
 #define KETL_REG_CX     1
@@ -411,9 +411,12 @@ static uint8_t parameterRegs[] = {
 #if !KETL_OS_WINDOWS
     KETL_REG_DI,
     KETL_REG_SI,
-#endif
+    KETL_REG_DX,
+    KETL_REG_CX,
+#else
     KETL_REG_CX,
     KETL_REG_DX,
+#endif
     KETL_REG_R8,
     KETL_REG_R9,
 };
@@ -422,31 +425,24 @@ static uint64_t copyArgumentsToStack(uint8_t* buffer, ketl_ir_function* irFuncti
     uint64_t length = 0;
     ketl_ir_argument* functionArguments = irFunction->arguments;
     uint64_t stackUsage = irFunction->stackUsage;
-    uint16_t regParameterCount = parameterCount < sizeof(parameterRegs) ? parameterCount : sizeof(parameterRegs);
+    uint16_t regParameterCount = parameterCount < sizeof(parameterRegs) - 1 ? parameterCount : sizeof(parameterRegs) - 1;
     
-    OpStruct tmpOpStruct;
-    tmpOpStruct.firstArgType = KETL_ARG_RSP_MEM_DISP;
-    tmpOpStruct.secondArgType = KETL_ARG_REG;
-    tmpOpStruct.opCode = KETL_OP_MOV;
+    OpStruct movArgOpStruct;
+    movArgOpStruct.firstArgType = KETL_ARG_RSP_MEM_DISP;
+    movArgOpStruct.secondArgType = KETL_ARG_REG;
+    movArgOpStruct.opCode = KETL_OP_MOV;
+
+    // first argument is always functionClass
+    movArgOpStruct.size = sizeof(void*);
+    movArgOpStruct.firstArg = sizeof(void*);
+    movArgOpStruct.secondArg = parameterRegs[0];
+    length += execOpcode(buffer + length, &movArgOpStruct);
+
     for (uint64_t i = 0; i < regParameterCount; ++i) {
-        switch (parameters[i].type.primitive->size) {
-        case 1:
-            tmpOpStruct.size = KETL_SIZE_8B;
-            break;
-        case 2:
-            tmpOpStruct.size = KETL_SIZE_16B;
-            break;
-        case 4:
-            tmpOpStruct.size = KETL_SIZE_32B;
-            break;
-        case 8:
-            tmpOpStruct.size = KETL_SIZE_64B;
-            break;
-        KETL_NODEFAULT()
-        }
-        tmpOpStruct.firstArg = functionArguments[i].stack - stackUsage;
-        tmpOpStruct.secondArg = parameterRegs[i];
-        length += execOpcode(buffer + length, &tmpOpStruct);\
+        movArgOpStruct.size = parameters[i].type.primitive->size;
+        movArgOpStruct.firstArg = functionArguments[i].stack - stackUsage;
+        movArgOpStruct.secondArg = parameterRegs[i + 1];
+        length += execOpcode(buffer + length, &movArgOpStruct);
     }
 
     return length;
@@ -481,7 +477,7 @@ KETL_DEFINE(JumpInfo) {
 };
 
 
-ketl_function* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_function* irFunction, ketl_type_parameters* parameters, uint16_t parameterCount) {
+const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_function* irFunction, ketl_type_parameters* parameters, uint16_t parameterCount) {
     ketl_int_map_reset(&irCompiler->operationBufferOffsetMap);
     ketl_stack_reset(&irCompiler->jumpList);
 
@@ -721,7 +717,7 @@ ketl_function* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
     printf("\n");
 #endif
 
-    return (ketl_function*)ketl_executable_memory_allocate(&irCompiler->exeMemory, &opcodes, sizeof(opcodesBuffer), length);
+    return ketl_executable_memory_allocate(&irCompiler->exeMemory, &opcodes, sizeof(opcodesBuffer), length);
 }
 
 void ketl_ir_compiler_init(ketl_ir_compiler* irCompiler) {

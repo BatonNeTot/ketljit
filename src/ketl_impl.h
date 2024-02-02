@@ -74,6 +74,10 @@ KETL_DEFINE(ketl_state) {
 		ketl_type_primitive f64_t;
 	} primitives;
 
+	struct {
+		ketl_type_meta functionClass;
+	} metaTypes;
+
 	ketl_object_pool unaryOperatorsPool;
 	ketl_object_pool binaryOperatorsPool;
 	ketl_object_pool castOperatorsPool;
@@ -88,5 +92,7 @@ KETL_DEFINE(ketl_state) {
 	ketl_object_pool typeFunctionsPool;
 	ketl_int_map typeFunctionSearchMap;
 };
+
+ketl_type_pointer getFunctionType(ketl_state* state, ketl_type_parameters* parameters, uint64_t parametersCount);
 
 #endif // ketl_ketl_impl_h

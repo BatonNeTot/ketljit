@@ -271,6 +271,7 @@ ketl_state* ketl_state_create() {
 	createPrimitive(&state->primitives.f32_t, ketl_atomic_strings_get(&state->strings, "f32", KETL_NULL_TERMINATED_LENGTH), sizeof(float), &state->globalNamespace);
 	createPrimitive(&state->primitives.f64_t, ketl_atomic_strings_get(&state->strings, "f64", KETL_NULL_TERMINATED_LENGTH), sizeof(double), &state->globalNamespace);
 
+	state->metaTypes.functionClass = (ketl_type_meta){.name = NULL, .kind = KETL_TYPE_KIND_META, .size = sizeof(ketl_type_function_class)};
 
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_IR_CODE_ADD_INT8, &state->primitives.i8_t);
 	registerPrimitiveBinaryOperator(state, KETL_OPERATOR_CODE_BI_PLUS, KETL_IR_CODE_ADD_INT16, &state->primitives.i16_t);
@@ -373,7 +374,7 @@ void* ketl_state_define_internal_variable(ketl_state* state, const char* name, k
 	ketl_variable_traits traits;
 	traits.values.isConst = false;
 	traits.values.isNullable = false;
-	void* pointer = ketl_heap_memory_allocate_root(&state->hmemory, type, traits);
+	void* pointer = ketl_heap_memory_allocate_root(&state->hmemory, type);
 	ketlDefineVariable(state, name, type, traits, pointer);
 	return pointer;
 }
@@ -386,13 +387,13 @@ ketl_function* ketlCompileFunction(ketl_state* state, const char* source, ketl_f
 
 int64_t ketl_state_eval_local(ketl_state* state, const char* source) {
 	ketl_function* function = ketl_state_compile_function_impl(state, NULL, source, NULL, 0);
-	return function ? KETL_CALL_FUNCTION(function, int64_t(*)()) : -1;
+	return function ? KETL_CALL_FUNCTION(function, int64_t) : -1;
 }
 
 
 int64_t ketl_state_eval(ketl_state* state, const char* source) {
 	ketl_function* function = ketl_state_compile_function_impl(state, &state->globalNamespace, source, NULL, 0);
-	return function ? KETL_CALL_FUNCTION(function, int64_t(*)()) : -1;
+	return function ? KETL_CALL_FUNCTION(function, int64_t) : -1;
 }
 
 ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespace* namespace, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
@@ -408,12 +409,18 @@ ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespac
 
 	// TODO optimization on ir
 
-	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, irFunction.type.function->parameters + 1, irFunction.type.function->parameterCount - 1);
+	ketl_type_function* functionType = irFunction.type.functionClass->functionType;
+	const uint8_t* functionBytecode = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, 
+		functionType->parameters + 1, functionType->parameterCount - 1);
+	
+	ketl_function* functionClass = ketl_heap_memory_allocate(&state->hmemory, irFunction.type);
+	*(const uint8_t**)functionClass = functionBytecode;
+	
 	free(irFunction.function);
-	return function;
+	return functionClass;
 }
 
-ketl_variable* ketl_state_comple_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+ketl_variable* ketl_state_compile_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
 	ketl_syntax_node* root = ketl_syntax_solver_solve(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
 	if (!root) {
 		return NULL;
@@ -426,8 +433,14 @@ ketl_variable* ketl_state_comple_function(ketl_state* state, const char* source,
 
 	// TODO optimization on ir
 
-	ketl_function* function = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, irFunction.type.function->parameters + 1, irFunction.type.function->parameterCount - 1);
-	(void)function;
+	ketl_type_function* functionType = irFunction.type.functionClass->functionType;
+	const uint8_t*  functionBytecode = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, 
+		functionType->parameters + 1, functionType->parameterCount - 1);
+	
+	ketl_function* functionClass = ketl_heap_memory_allocate(&state->hmemory, irFunction.type);
+	*(const uint8_t**)functionClass = functionBytecode;
+	(void)functionClass;
+
 	free(irFunction.function);
 
 	ketl_variable* variable = NULL;

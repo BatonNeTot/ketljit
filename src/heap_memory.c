@@ -5,20 +5,19 @@
 
 #include <stdlib.h>
 
-KETL_DEFINE(ketl_heap_mamory_variable) {
+KETL_DEFINE(ketl_heap_memory_variable) {
     void* ptr;
     ketl_type_pointer type;
-    ketl_variable_traits traits;
     bool managedFlag;
     bool usageState;
 };
 
-static void destroy_variable(ketl_heap_mamory_variable* variable) {
+static void destroy_variable(ketl_heap_memory_variable* variable) {
     // TODO call destructor
     free(variable->ptr);
 }
 
-static inline ketl_heap_mamory_variable* find_node(ketl_heap_memory* hmemory, void* ptr) {
+static inline ketl_heap_memory_variable* find_node(ketl_heap_memory* hmemory, void* ptr) {
     return ketl_int_map_get(&hmemory->variableMap, (ketl_int_map_key)ptr);
 } 
 
@@ -27,14 +26,14 @@ static void memory_mark(ketl_heap_memory* hmemory) {
         ketl_stack_iterator rootIterator;
         ketl_stack_iterator_init(&rootIterator, &hmemory->staticRootVariables);
         while (ketl_stack_iterator_has_next(&rootIterator)) {
-            (*(ketl_heap_mamory_variable**)ketl_stack_push(&hmemory->markStack)) =
-                 *(ketl_heap_mamory_variable**)ketl_stack_iterator_get_next(&rootIterator);
+            (*(ketl_heap_memory_variable**)ketl_stack_push(&hmemory->markStack)) =
+                 *(ketl_heap_memory_variable**)ketl_stack_iterator_get_next(&rootIterator);
         }
     }
 
     bool currentUsageState = hmemory->currentUsageState;
     while(!ketl_stack_is_empty(&hmemory->markStack)) {
-        ketl_heap_mamory_variable* variableToMark = *(ketl_heap_mamory_variable**)ketl_stack_peek(&hmemory->markStack);
+        ketl_heap_memory_variable* variableToMark = *(ketl_heap_memory_variable**)ketl_stack_peek(&hmemory->markStack);
         ketl_stack_pop(&hmemory->markStack);
 
         if (variableToMark->usageState == currentUsageState) {
@@ -43,9 +42,9 @@ static void memory_mark(ketl_heap_memory* hmemory) {
 
         variableToMark->usageState = currentUsageState;
 
-        ketl_heap_mamory_variable* typeVariable = find_node(hmemory, variableToMark->type.base);
+        ketl_heap_memory_variable* typeVariable = find_node(hmemory, variableToMark->type.base);
         if (typeVariable != NULL) {
-            (*(ketl_heap_mamory_variable**)ketl_stack_push(&hmemory->markStack)) = typeVariable;
+            (*(ketl_heap_memory_variable**)ketl_stack_push(&hmemory->markStack)) = typeVariable;
         }
 
         // TODO go through fields and collect for marking
@@ -59,10 +58,10 @@ static void memory_sweep(ketl_heap_memory* hmemory) {
     ketl_int_map_iterator_init(&variableIterator, &hmemory->variableMap);
     while (ketl_int_map_iterator_has_next(&variableIterator)) {
         void* ptr;
-        ketl_heap_mamory_variable** ppVariable;
+        ketl_heap_memory_variable** ppVariable;
         ketl_int_map_iterator_get(&variableIterator, (ketl_int_map_key*)(&ptr), &ppVariable);
 
-        ketl_heap_mamory_variable variable = **ppVariable;
+        ketl_heap_memory_variable variable = **ppVariable;
 
         if (ptr == variable.ptr && variable.usageState != currentUsagestate) {
             destroy_variable(&variable);
@@ -74,14 +73,14 @@ static void memory_sweep(ketl_heap_memory* hmemory) {
 }
 
 void ketl_heap_memory_init(ketl_heap_memory* hmemory) {
-    ketl_int_map_init(&hmemory->variableMap, sizeof(ketl_heap_mamory_variable),32);
-    ketl_stack_init(&hmemory->staticRootVariables, sizeof(ketl_heap_mamory_variable*),32);
-    ketl_stack_init(&hmemory->markStack, sizeof(ketl_heap_mamory_variable*),32);
+    ketl_int_map_init(&hmemory->variableMap, sizeof(ketl_heap_memory_variable),32);
+    ketl_stack_init(&hmemory->staticRootVariables, sizeof(ketl_heap_memory_variable*),32);
+    ketl_stack_init(&hmemory->markStack, sizeof(ketl_heap_memory_variable*),32);
 }
 
 void ketl_heap_memory_deinit(ketl_heap_memory* hmemory) {
     while (!ketl_stack_is_empty(&hmemory->staticRootVariables)) {
-        ketl_heap_mamory_variable* variable = *(ketl_heap_mamory_variable**)ketl_stack_peek(&hmemory->staticRootVariables);
+        ketl_heap_memory_variable* variable = *(ketl_heap_memory_variable**)ketl_stack_peek(&hmemory->staticRootVariables);
         ketl_stack_pop(&hmemory->staticRootVariables);
         
         destroy_variable(variable);
@@ -95,29 +94,28 @@ void ketl_heap_memory_deinit(ketl_heap_memory* hmemory) {
     ketl_int_map_deinit(&hmemory->variableMap);
 }
 
-static ketl_heap_mamory_variable* allocate_node(ketl_heap_memory* hmemory, ketl_type_pointer type, ketl_variable_traits traits) {
-    ketl_heap_mamory_variable variable;
+static ketl_heap_memory_variable* allocate_node(ketl_heap_memory* hmemory, ketl_type_pointer type) {
+    ketl_heap_memory_variable variable;
     variable.ptr = malloc(ketl_type_get_size(type));
     variable.type = type;
-    variable.traits = traits;
     variable.managedFlag = true;
     variable.usageState = hmemory->currentUsageState;
 
-    ketl_heap_mamory_variable* pVariable;
+    ketl_heap_memory_variable* pVariable;
     ketl_int_map_get_or_create(&hmemory->variableMap, (ketl_int_map_key)variable.ptr, &pVariable);
     *pVariable = variable;
 
     return pVariable;
 }
 
-void* ketl_heap_memory_allocate(ketl_heap_memory* hmemory, ketl_type_pointer type, ketl_variable_traits traits) {
-    ketl_heap_mamory_variable* variable = allocate_node(hmemory, type, traits);
+void* ketl_heap_memory_allocate(ketl_heap_memory* hmemory, ketl_type_pointer type) {
+    ketl_heap_memory_variable* variable = allocate_node(hmemory, type);
     return variable->ptr;
 }
 
-void* ketl_heap_memory_allocate_root(ketl_heap_memory* hmemory, ketl_type_pointer type, ketl_variable_traits traits) {
-    ketl_heap_mamory_variable* variable = allocate_node(hmemory, type, traits);
-    (*(ketl_heap_mamory_variable**)ketl_stack_push(&hmemory->staticRootVariables)) = variable;
+void* ketl_heap_memory_allocate_root(ketl_heap_memory* hmemory, ketl_type_pointer type) {
+    ketl_heap_memory_variable* variable = allocate_node(hmemory, type);
+    (*(ketl_heap_memory_variable**)ketl_stack_push(&hmemory->staticRootVariables)) = variable;
     return variable->ptr;
 }
 

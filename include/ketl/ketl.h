@@ -9,7 +9,6 @@
 #include "ketl/utils.h"
 
 KETL_FORWARD(ketl_state);
-KETL_FORWARD(ketl_type_parameters);
 
 ketl_state* ketl_state_create();
 
@@ -23,11 +22,9 @@ ketl_type_pointer ketl_state_get_type_i32(ketl_state* state);
 
 ketl_type_pointer ketl_state_get_type_i64(ketl_state* state);
 
-ketl_type_pointer getFunctionType(ketl_state* state, ketl_type_parameters* parameters, uint64_t parametersCount);
-
 ketl_function* ketlCompileFunction(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
 
-ketl_variable* ketl_state_comple_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
+ketl_variable* ketl_state_compile_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
 
 int64_t ketl_state_eval_local(ketl_state* state, const char* source);
 

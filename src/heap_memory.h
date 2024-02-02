@@ -18,9 +18,9 @@ void ketl_heap_memory_init(ketl_heap_memory* hmemory);
 
 void ketl_heap_memory_deinit(ketl_heap_memory* hmemory);
 
-void* ketl_heap_memory_allocate(ketl_heap_memory* hmemory, ketl_type_pointer type, ketl_variable_traits traits);
+void* ketl_heap_memory_allocate(ketl_heap_memory* hmemory, ketl_type_pointer type);
 
-void* ketl_heap_memory_allocate_root(ketl_heap_memory* hmemory, ketl_type_pointer type, ketl_variable_traits traits);
+void* ketl_heap_memory_allocate_root(ketl_heap_memory* hmemory, ketl_type_pointer type);
 
 void ketl_heap_memory_prune(ketl_heap_memory* hmemory);
 
