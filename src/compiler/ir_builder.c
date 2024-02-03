@@ -194,21 +194,25 @@ static inline Literal parseLiteral(KETLIRFunctionWIP* wip, const char* value, si
 		literal.type.primitive = &wip->builder->state->primitives.i8_t;
 		literal.value.int8 = (int8_t)intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT8;
+		literal.value.stackSize = 1;
 	}
 	else if (INT16_MIN <= intValue && intValue <= INT16_MAX) {
 		literal.type.primitive = &wip->builder->state->primitives.i16_t;
 		literal.value.int16 = (int16_t)intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT16;
+		literal.value.stackSize = 2;
 	}
 	else if (INT32_MIN <= intValue && intValue <= INT32_MAX) {
 		literal.type.primitive = &wip->builder->state->primitives.i32_t;
 		literal.value.int32 = (int32_t)intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT32;
+		literal.value.stackSize = 4;
 	}
 	else if (INT64_MIN <= intValue && intValue <= INT16_MAX) {
 		literal.type.primitive = &wip->builder->state->primitives.i64_t;
 		literal.value.int64 = intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT64;
+		literal.value.stackSize = 8;
 	}
 	return literal;
 }
@@ -1101,6 +1105,8 @@ static inline uint64_t bakeStackUsage(ketl_scoped_variable* stackRoot) {
 		it->variable.value.stack = currentStackOffset;
 
 		uint64_t size = ketl_type_get_stack_size(it->variable.type);
+		it->variable.value.stackSize = size;
+
 		currentStackOffset += size;
 		if (maxStackOffset < currentStackOffset) {
 			maxStackOffset = currentStackOffset;
@@ -1162,7 +1168,8 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 			uint64_t stackTypeSize = ketl_type_get_stack_size(parameter.type);
 			
 			parameter.value.type = KETL_IR_ARGUMENT_TYPE_STACK;
-			parameter.value.stack = sizeof(void*) + currentStackOffset;
+			parameter.value.stack = currentStackOffset;
+			parameter.value.stackSize = stackTypeSize;
 
 			currentStackOffset += stackTypeSize;
 
@@ -1439,6 +1446,7 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 
 			stackVariable.variable.value.pointer = ketl_state_define_internal_variable(wip.builder->state, name, stackVariable.variable.type);
 			stackVariable.variable.value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
+			stackVariable.variable.value.stackSize = ketl_type_get_stack_size(stackVariable.variable.type);
 			pStackVariable->variable.value = stackVariable.variable.value;
 		}
 	}
@@ -1465,23 +1473,22 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 	}
 
 	uint64_t operationCount = ketl_int_map_get_size(&irBuilder->operationReferMap);
-	uint64_t argumentsCount = ketl_int_map_get_size(&irBuilder->argumentsMap);
+	uint64_t argumentCount = ketl_int_map_get_size(&irBuilder->argumentsMap);
 
 	uint64_t maxStackOffset = bakeStackUsage(wip.stack.stackRoot);
 
 	// TODO align
-	uint64_t totalSize = sizeof(ketl_ir_function) + sizeof(ketl_ir_argument) * argumentsCount + sizeof(ketl_ir_operation) * operationCount;
+	uint64_t totalSize = sizeof(ketl_ir_function) + sizeof(ketl_ir_argument) * argumentCount + sizeof(ketl_ir_operation) * operationCount;
 	uint8_t* rawPointer = malloc(totalSize);
 
  	functionDefinition.function = (ketl_ir_function*)rawPointer;
 	rawPointer += sizeof(ketl_ir_function);
 
-	uint64_t stackUsage = maxStackOffset;
-    stackUsage = ((stackUsage + 15) / 16) * 16; // 16 bites aligned
-	functionDefinition.function->stackUsage = stackUsage;
+	functionDefinition.function->stackUsage = maxStackOffset;
 
+	functionDefinition.function->argumentCount = argumentCount;
 	functionDefinition.function->arguments = (ketl_ir_argument*)rawPointer;
-	rawPointer += sizeof(ketl_ir_argument) * argumentsCount;
+	rawPointer += sizeof(ketl_ir_argument) * argumentCount;
 
 	ketl_int_map_iterator argumentIterator;
 	ketl_int_map_iterator_init(&argumentIterator, &irBuilder->argumentsMap);
@@ -1493,7 +1500,7 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 		ketl_int_map_iterator_next(&argumentIterator);
 	}
 
-	functionDefinition.function->operationsCount = operationCount;
+	functionDefinition.function->operationCount = operationCount;
 	functionDefinition.function->operations = (ketl_ir_operation*)rawPointer;
 
 	ketl_int_map_iterator operationIterator;
@@ -1528,7 +1535,6 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 	for (uint64_t i = 1u; i < parametersCount; ++i) {
 		typeParameters[i].type = parameters[i - 1].type;
 		typeParameters[i].traits = parameters[i - 1].traits;
-		functionDefinition.function->arguments[i - 1].stack += stackUsage;
 	}
 	functionDefinition.type = getFunctionType(irBuilder->state, typeParameters, parametersCount);
 	free(typeParameters);

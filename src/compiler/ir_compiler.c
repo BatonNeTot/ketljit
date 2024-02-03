@@ -35,8 +35,9 @@
 #define KETL_ARG_REG            0
 #define KETL_ARG_REG_MEM        1
 #define KETL_ARG_RSP_MEM_DISP   2
-#define KETL_ARG_IMM            3
-#define KETL_ARG_IMM_MEM        4
+#define KETL_ARG_RBP_MEM_DISP   3
+#define KETL_ARG_IMM            4
+#define KETL_ARG_IMM_MEM        5
 
 #define KETL_OP_MOV     0
 
@@ -143,6 +144,7 @@ static uint64_t execMov(uint8_t* buffer, OpStruct* opStruct) {
         case KETL_ARG_REG:
         case KETL_ARG_REG_MEM:
         case KETL_ARG_RSP_MEM_DISP:
+        case KETL_ARG_RBP_MEM_DISP:
             if (opStruct->size == KETL_SIZE_8B) {
                 buffer[size++] = 0x8a;
             } else {
@@ -152,7 +154,8 @@ static uint64_t execMov(uint8_t* buffer, OpStruct* opStruct) {
                 opStruct->firstArg -= KETL_REG_R8;
                 pRex->r = 1;
             }
-            if (opStruct->secondArgType != KETL_ARG_RSP_MEM_DISP &&
+            if ((opStruct->secondArgType == KETL_ARG_REG ||
+                opStruct->secondArgType == KETL_ARG_REG_MEM) &&
                 opStruct->secondArg >= KETL_REG_R8) {
                 opStruct->secondArg -= KETL_REG_R8;
                 pRex->b = 1;
@@ -167,22 +170,30 @@ static uint64_t execMov(uint8_t* buffer, OpStruct* opStruct) {
                 };
                 buffer[size++] = *(uint8_t*)&modrm;
             } else {
-                // [SIB]
-                MODRMByte modrm = {
-                    .mod = opStruct->secondArgType == KETL_ARG_REG_MEM
-                        ? MODRM_MOD_IND : MODRM_MOD_IND_DIS32,
-                    .reg = opStruct->firstArg,
-                    .rm = KETL_REG_SP
-                };
-                buffer[size++] = *(uint8_t*)&modrm;
-                // [RSP + disp32]
-                SIBByte sib = {
-                    .scale =  SIB_SCALE_1,
-                    .index = KETL_REG_SP,
-                    .base = KETL_REG_SP
-                };
-                buffer[size++] = *(uint8_t*)&sib;
-                if (opStruct->secondArgType == KETL_ARG_RSP_MEM_DISP) {
+                if (opStruct->secondArgType == KETL_ARG_REG_MEM) {
+                    // [reg]
+                    MODRMByte modrm = {
+                        .mod = MODRM_MOD_IND,
+                        .reg = opStruct->firstArg,
+                        .rm = opStruct->secondArg
+                    };
+                    buffer[size++] = *(uint8_t*)&modrm;
+                } else {
+                    // [SIB]
+                    MODRMByte modrm = {
+                        .mod = MODRM_MOD_IND_DIS32,
+                        .reg = opStruct->firstArg,
+                        .rm = KETL_REG_SP
+                    };
+                    buffer[size++] = *(uint8_t*)&modrm;
+                    // [RSP + disp32] or [RBP + disp32]
+                    SIBByte sib = {
+                        .scale =  SIB_SCALE_1,
+                        .index = KETL_REG_SP,
+                        .base = opStruct->secondArgType == KETL_ARG_RSP_MEM_DISP
+                            ? KETL_REG_SP : KETL_REG_BP
+                    };
+                    buffer[size++] = *(uint8_t*)&sib;
                     *(uint32_t*)(buffer + size) = opStruct->secondArg;
                     size += 4;
                 }
@@ -236,6 +247,7 @@ static uint64_t execMov(uint8_t* buffer, OpStruct* opStruct) {
         }
     case KETL_ARG_REG_MEM:
     case KETL_ARG_RSP_MEM_DISP:
+    case KETL_ARG_RBP_MEM_DISP:
         switch (opStruct->secondArgType) {
         case KETL_ARG_REG:
             if (opStruct->size == KETL_SIZE_8B) {
@@ -252,22 +264,35 @@ static uint64_t execMov(uint8_t* buffer, OpStruct* opStruct) {
                 opStruct->secondArg -= KETL_REG_R8;
                 pRex->r = 1;
             }
-            // [SIB]
-            MODRMByte modrm = {
-                .mod = MODRM_MOD_IND_DIS32,
-                .reg = opStruct->secondArg,
-                .rm = KETL_REG_SP
-            };
-            buffer[size++] = *(uint8_t*)&modrm;
-            // [RSP + disp32]
-            SIBByte sib = {
-                .scale =  SIB_SCALE_1,
-                .index = KETL_REG_SP,
-                .base = KETL_REG_SP
-            };
-            buffer[size++] = *(uint8_t*)&sib;
-            *(uint32_t*)(buffer + size) = opStruct->firstArg;
-            size += 4;
+
+
+            if (opStruct->firstArgType == KETL_ARG_REG_MEM) {
+                // [reg]
+                MODRMByte modrm = {
+                    .mod = MODRM_MOD_IND,
+                    .reg = opStruct->secondArg,
+                    .rm = opStruct->firstArg
+                };
+                buffer[size++] = *(uint8_t*)&modrm;
+            } else {
+                // [SIB]
+                MODRMByte modrm = {
+                    .mod = MODRM_MOD_IND_DIS32,
+                    .reg = opStruct->secondArg,
+                    .rm = KETL_REG_SP
+                };
+                buffer[size++] = *(uint8_t*)&modrm;
+                // [RSP + disp32] or [RBP + disp32]
+                SIBByte sib = {
+                    .scale =  SIB_SCALE_1,
+                    .index = KETL_REG_SP,
+                    .base = opStruct->firstArgType == KETL_ARG_RSP_MEM_DISP
+                        ? KETL_REG_SP : KETL_REG_BP
+                };
+                buffer[size++] = *(uint8_t*)&sib;
+                *(uint32_t*)(buffer + size) = opStruct->firstArg;
+                size += 4;
+            }
             return size;
         KETL_NODEFAULT()
         }
@@ -325,6 +350,17 @@ static uint64_t execOpcode(uint8_t* buffer, OpStruct* opStruct) {
     (sizeAccum) += execOpcode((buffer), &tmpOpStruct);\
 } while(false)
 
+#define EXEC_OPCODE_REG_RBP_DISP(buffer, sizeAccum, sizeArg, opcodeArg, regArg, immArg) do {\
+    OpStruct tmpOpStruct;\
+    tmpOpStruct.size = (sizeArg);\
+    tmpOpStruct.firstArgType = KETL_ARG_REG;\
+    tmpOpStruct.secondArgType = KETL_ARG_RBP_MEM_DISP;\
+    tmpOpStruct.opCode = (opcodeArg);\
+    tmpOpStruct.firstArg = (regArg);\
+    tmpOpStruct.secondArg = (immArg);\
+    (sizeAccum) += execOpcode((buffer), &tmpOpStruct);\
+} while(false)
+
 #define EXEC_OPCODE_REG_IMM_MEM(buffer, sizeAccum, sizeArg, opcodeArg, regArg, immArg) do {\
     OpStruct tmpOpStruct;\
     tmpOpStruct.size = (sizeArg);\
@@ -347,6 +383,17 @@ static uint64_t execOpcode(uint8_t* buffer, OpStruct* opStruct) {
     (sizeAccum) += execOpcode((buffer), &tmpOpStruct);\
 } while(false)
 
+#define EXEC_OPCODE_RBP_DISP_REG(buffer, sizeAccum, sizeArg, opcodeArg, immArg, regArg) do {\
+    OpStruct tmpOpStruct;\
+    tmpOpStruct.size = (sizeArg);\
+    tmpOpStruct.firstArgType = KETL_ARG_RBP_MEM_DISP;\
+    tmpOpStruct.secondArgType = KETL_ARG_REG;\
+    tmpOpStruct.opCode = (opcodeArg);\
+    tmpOpStruct.firstArg = (immArg);\
+    tmpOpStruct.secondArg = (regArg);\
+    (sizeAccum) += execOpcode((buffer), &tmpOpStruct);\
+} while(false)
+
 #define EXEC_OPCODE_IMM_MEM_REG(buffer, sizeAccum, sizeArg, opcodeArg, immArg, regArg) do {\
     OpStruct tmpOpStruct;\
     tmpOpStruct.size = (sizeArg);\
@@ -362,7 +409,11 @@ static inline uint64_t loadArgumentIntoReg(uint8_t* buffer, ketl_ir_argument* ar
     uint64_t size = 0;
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: 
+#if KETL_OS_WINDOWS
         EXEC_OPCODE_REG_RSP_DISP(buffer, size, sizeMacro, KETL_OP_MOV, regMacro, (int32_t)argument->stack);
+#else
+        EXEC_OPCODE_REG_RBP_DISP(buffer, size, sizeMacro, KETL_OP_MOV, regMacro, (int32_t)argument->stack);
+#endif
         return size;
     case KETL_IR_ARGUMENT_TYPE_POINTER: 
         EXEC_OPCODE_REG_IMM_MEM(buffer, size, sizeMacro, KETL_OP_MOV, regMacro, (uint64_t)argument->pointer);
@@ -388,7 +439,11 @@ static uint64_t loadRegIntoArgument(uint8_t* buffer, ketl_ir_argument* argument,
     uint8_t size = 0;
     switch (argument->type) {
     case KETL_IR_ARGUMENT_TYPE_STACK: 
+#if KETL_OS_WINDOWS
         EXEC_OPCODE_RSP_DISP_REG(buffer, size, sizeMacro, KETL_OP_MOV, (int32_t)argument->stack, regMacro);
+#else
+        EXEC_OPCODE_RBP_DISP_REG(buffer, size, sizeMacro, KETL_OP_MOV, (int32_t)argument->stack, regMacro);
+#endif
         return size;
     case KETL_IR_ARGUMENT_TYPE_POINTER: 
         EXEC_OPCODE_IMM_MEM_REG(buffer, size, sizeMacro, KETL_OP_MOV, (uint64_t)argument->pointer, regMacro);
@@ -407,6 +462,7 @@ static uint64_t compareRaxAndRcx(uint8_t* buffer) {
     return sizeof(opcodesArray);
 }
 
+
 static uint8_t parameterRegs[] = {
 #if !KETL_OS_WINDOWS
     KETL_REG_DI,
@@ -421,11 +477,32 @@ static uint8_t parameterRegs[] = {
     KETL_REG_R9,
 };
 
-static uint64_t copyArgumentsToStack(uint8_t* buffer, ketl_ir_function* irFunction, ketl_type_parameters* parameters, uint16_t parameterCount) {
+#if KETL_OS_WINDOWS
+
+void ketl_ir_compiler_adapt_ir(ketl_ir_function* irFunction, uint16_t parameterCount) {
+    uint64_t stackUsage = irFunction->stackUsage = ((irFunction->stackUsage + 15) / 16) * 16; // 16 bites aligned
+    ketl_ir_argument* functionArguments = irFunction->arguments;
+
+    // first argument is silently functionClass
+    ++parameterCount;
+    uint16_t regParameterCount = parameterCount <= sizeof(parameterRegs) ? parameterCount : sizeof(parameterRegs);
+
+    for (uint64_t i = 0; i < regParameterCount; ++i) {
+        functionArguments[i].stack += sizeof(void*) + stackUsage;
+    }
+    for (uint64_t i = regParameterCount; i < parameterCount; ++i) {
+        // TODO prepare stackParameters
+    }
+}
+
+static uint64_t placeFunctionHeader(uint8_t* buffer, ketl_ir_function* irFunction, uint16_t parameterCount) {
     uint64_t length = 0;
     ketl_ir_argument* functionArguments = irFunction->arguments;
     uint64_t stackUsage = irFunction->stackUsage;
-    uint16_t regParameterCount = parameterCount < sizeof(parameterRegs) - 1 ? parameterCount : sizeof(parameterRegs) - 1;
+
+    // first argument is silently functionClass
+    ++parameterCount;
+    uint16_t regParameterCount = parameterCount <= sizeof(parameterRegs)? parameterCount : sizeof(parameterRegs);
     
     OpStruct movArgOpStruct;
     movArgOpStruct.firstArgType = KETL_ARG_RSP_MEM_DISP;
@@ -438,22 +515,32 @@ static uint64_t copyArgumentsToStack(uint8_t* buffer, ketl_ir_function* irFuncti
     movArgOpStruct.secondArg = parameterRegs[0];
     length += execOpcode(buffer + length, &movArgOpStruct);
 
-    for (uint64_t i = 0; i < regParameterCount; ++i) {
-        movArgOpStruct.size = parameters[i].type.primitive->size;
-        movArgOpStruct.firstArg = functionArguments[i].stack - stackUsage;
-        movArgOpStruct.secondArg = parameterRegs[i + 1];
+    for (uint64_t i = 1; i < regParameterCount; ++i) {
+        movArgOpStruct.size = functionArguments[i - 1].stackSize;
+        movArgOpStruct.firstArg = functionArguments[i - 1].stack - stackUsage;
+        movArgOpStruct.secondArg = parameterRegs[i];
         length += execOpcode(buffer + length, &movArgOpStruct);
+    }
+
+    if (stackUsage > 0) {
+        const uint8_t opcodesArray[] =
+        {
+            0x48, 0x81, 0xec, 0xff, 0xff, 0x00, 0x00,             // sub     rsp, 65535
+        };
+        memcpy(buffer + length, opcodesArray, sizeof(opcodesArray));
+        *(int32_t*)(buffer + length + 3) = (int32_t)stackUsage;
+        length += sizeof(opcodesArray);
     }
 
     return length;
 }
 
-static uint64_t returnOpcodes(uint8_t* buffer, uint64_t stackUsage) {
+static uint64_t placeFunctionFooter(uint8_t* buffer, uint64_t stackUsage) {
     uint64_t length = 0;
     if (stackUsage > 0) {
         const uint8_t opcodesArray[] =
         {
-            0x48, 0x81, 0xc4, 0x00, 0x00, 0x00, 0x00,              // add     rsp, 0
+            0x48, 0x81, 0xc4, 0xff, 0xff, 0x00, 0x00,             // add     rsp, 65535
         };
         memcpy(buffer, opcodesArray, sizeof(opcodesArray));
         *(int32_t*)(buffer + 3) = (int32_t)stackUsage;
@@ -470,6 +557,127 @@ static uint64_t returnOpcodes(uint8_t* buffer, uint64_t stackUsage) {
     return length;
 }
 
+#else
+
+void ketl_ir_compiler_adapt_ir(ketl_ir_function* irFunction, uint16_t parameterCount) {
+    uint64_t stackUsage = irFunction->stackUsage;
+    uint64_t functionArgumentCount = irFunction->argumentCount;
+    ketl_ir_argument* functionArguments = irFunction->arguments;
+
+    // first argument is silently functionClass
+    ++parameterCount;
+    uint16_t regParameterCount = parameterCount <= sizeof(parameterRegs) ? parameterCount : sizeof(parameterRegs);
+
+    uint64_t regParametersSize;
+    if (parameterCount > 1) {
+        uint16_t lastRegParameterIndex = regParameterCount - 2;
+        regParametersSize = functionArguments[lastRegParameterIndex].stack + functionArguments[lastRegParameterIndex].stackSize;
+    } else {
+        regParametersSize = sizeof(void*);
+    }
+    irFunction->stackUsage = ((stackUsage + regParametersSize + 15) / 16) * 16; // 16 bites aligned
+
+    for (uint64_t i = 1; i < regParameterCount; ++i) {
+        functionArguments[i - 1].stack += stackUsage + functionArguments[i - 1].stackSize;
+        functionArguments[i - 1].stack *= -1;
+    }
+    for (uint64_t i = regParameterCount; i < parameterCount; ++i) {
+        functionArguments[i - 1].stack = (i - regParameterCount + 2) * sizeof(void*);
+    }
+    for (uint64_t i = parameterCount - 1; i < functionArgumentCount; ++i) {
+        if (functionArguments[i].type == KETL_IR_ARGUMENT_TYPE_STACK) {
+            functionArguments[i].stack += functionArguments[i].stackSize;
+            functionArguments[i].stack *= -1;
+        }
+    }
+}
+
+static uint64_t placeFunctionHeader(uint8_t* buffer, ketl_ir_function* irFunction, uint16_t parameterCount) {
+    uint64_t length = 0;
+    ketl_ir_argument* functionArguments = irFunction->arguments;
+    uint64_t stackUsage = irFunction->stackUsage;
+
+    {
+        const uint8_t opcodesArray[] =
+        {
+            0x55,                   // push    rbp
+            0x48, 0x89, 0xe5,       // mov     rbp, rsp
+        };
+        memcpy(buffer + length, opcodesArray, sizeof(opcodesArray));
+        length += sizeof(opcodesArray);
+    }
+
+    if (stackUsage > 0) {
+        const uint8_t opcodesArray[] =
+        {
+            0x48, 0x81, 0xec, 0xff, 0xff, 0x00, 0x00,             // sub     rsp, 65535
+        };
+        memcpy(buffer + length, opcodesArray, sizeof(opcodesArray));
+        *(int32_t*)(buffer + length + 3) = (int32_t)stackUsage;
+        length += sizeof(opcodesArray);
+    }
+
+    // first argument is silently functionClass
+    ++parameterCount;
+    uint16_t regParameterCount = parameterCount < sizeof(parameterRegs) - 1 ? parameterCount : sizeof(parameterRegs) - 1;
+    
+    OpStruct movArgOpStruct;
+    movArgOpStruct.firstArgType = KETL_ARG_RBP_MEM_DISP;
+    movArgOpStruct.secondArgType = KETL_ARG_REG;
+    movArgOpStruct.opCode = KETL_OP_MOV;
+
+    // first argument is always functionClass
+    movArgOpStruct.size = sizeof(void*);
+    if (parameterCount <= 1) {
+        // temp hack until functionClass would be a proper argument
+        movArgOpStruct.firstArg = -(stackUsage + sizeof(void*));
+    } else {
+        movArgOpStruct.firstArg = functionArguments[0].stack + functionArguments[0].stackSize;
+    }
+    movArgOpStruct.secondArg = parameterRegs[0];
+    length += execOpcode(buffer + length, &movArgOpStruct);
+
+    for (uint64_t i = 1; i < regParameterCount; ++i) {
+        movArgOpStruct.size = functionArguments[i - 1].stackSize;
+        movArgOpStruct.firstArg = functionArguments[i - 1].stack;
+        movArgOpStruct.secondArg = parameterRegs[i];
+        length += execOpcode(buffer + length, &movArgOpStruct);
+    }
+
+    return length;
+}
+
+static uint64_t placeFunctionFooter(uint8_t* buffer, uint64_t stackUsage) {
+    (void)stackUsage;
+    uint64_t length = 0;
+    if (stackUsage > 0) {
+        const uint8_t opcodesArray[] =
+        {
+            0xc9,             // leave
+        };
+        memcpy(buffer + length, opcodesArray, sizeof(opcodesArray));
+        length += sizeof(opcodesArray);
+    } else {
+        const uint8_t opcodesArray[] =
+        {
+            0x5d               // pop     rbp
+        };
+        memcpy(buffer + length, opcodesArray, sizeof(opcodesArray));
+        length += sizeof(opcodesArray);
+    }
+    {
+        const uint8_t opcodesArray[] =
+        {
+            0xc3                // ret
+        };
+        memcpy(buffer + length, opcodesArray, sizeof(opcodesArray));
+        length += sizeof(opcodesArray);
+    }
+    return length;
+}
+
+#endif
+
 KETL_DEFINE(JumpInfo) {
     uint64_t bufferOffset;
     uint64_t fromOffset;
@@ -477,7 +685,7 @@ KETL_DEFINE(JumpInfo) {
 };
 
 
-const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_function* irFunction, ketl_type_parameters* parameters, uint16_t parameterCount) {
+const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_function* irFunction, uint16_t parameterCount) {
     ketl_int_map_reset(&irCompiler->operationBufferOffsetMap);
     ketl_stack_reset(&irCompiler->jumpList);
 
@@ -487,19 +695,10 @@ const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
     uint64_t length = 0;
 
 
-    length = copyArgumentsToStack(opcodesBuffer, irFunction, parameters, parameterCount);
-    if (stackUsage > 0) {
-        const uint8_t opcodesArray[] =
-        {
-            0x48, 0x81, 0xec, 0xff, 0xff, 0x00, 0x00,             // sub     rsp, 65535
-        };
-        memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
-        *(int32_t*)(opcodesBuffer + length + 3) = (int32_t)stackUsage;
-        length += sizeof(opcodesArray);
-    }
+    length = placeFunctionHeader(opcodesBuffer, irFunction, parameterCount);
 
     ketl_ir_operation* itOperation = irFunction->operations;
-    uint64_t operationsCount = irFunction->operationsCount;
+    uint64_t operationsCount = irFunction->operationCount;
     for (uint64_t i = 0; i < operationsCount; ++i) {
         {
             uint64_t* offset;
@@ -603,7 +802,7 @@ const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
                 memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
                 length += sizeof(opcodesArray);
             }
-            length += loadRegIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_64B, KETL_REG_AX);
+            length += loadRegIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_8B, KETL_REG_AX);
             break;
         }
         case KETL_IR_CODE_UNEQUAL_INT64: {
@@ -618,7 +817,7 @@ const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
                 memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
                 length += sizeof(opcodesArray);
             }
-            length += loadRegIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_64B, KETL_REG_AX);
+            length += loadRegIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_8B, KETL_REG_AX);
             break;
         }
         case KETL_IR_CODE_ASSIGN_8_BYTES: {
@@ -638,11 +837,11 @@ const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
             break;
         }
         case KETL_IR_CODE_JUMP_IF_FALSE: {
-            length += loadArgumentIntoReg(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_64B, KETL_REG_AX);
+            length += loadArgumentIntoReg(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_8B, KETL_REG_AX);
             {
                 const uint8_t opcodesArray[] =
                 {
-                    0x48, 0x85, 0xc0,                                   // test rax, rax
+                    0x84, 0xc0,                                   // test al, al
                 };
                 memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
                 length += sizeof(opcodesArray);
@@ -665,16 +864,16 @@ const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
         }
         case KETL_IR_CODE_RETURN_4_BYTES: {
             length += loadArgumentIntoReg(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_32B, KETL_REG_AX);
-            length += returnOpcodes(opcodesBuffer + length, stackUsage);
+            length += placeFunctionFooter(opcodesBuffer + length, stackUsage);
             break;
         }
         case KETL_IR_CODE_RETURN_8_BYTES: {
             length += loadArgumentIntoReg(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_64B, KETL_REG_AX);
-            length += returnOpcodes(opcodesBuffer + length, stackUsage);
+            length += placeFunctionFooter(opcodesBuffer + length, stackUsage);
             break;
         }
         case KETL_IR_CODE_RETURN: {
-            length += returnOpcodes(opcodesBuffer + length, stackUsage);
+            length += placeFunctionFooter(opcodesBuffer + length, stackUsage);
             break;
         }
         default:

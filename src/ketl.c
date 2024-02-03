@@ -349,6 +349,7 @@ static void ketlDefineVariable(ketl_state* state, const char* name, ketl_type_po
 	variable->type = type;
 	variable->traits = traits;
 	variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
+	variable->value.stackSize = ketl_type_get_stack_size(type);
 	variable->value.pointer = pointer;
 
 	ketl_ir_undefined_value* uvalue = ketl_object_pool_get(&state->undefVarPool);
@@ -410,8 +411,8 @@ ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespac
 	// TODO optimization on ir
 
 	ketl_type_function* functionType = irFunction.type.functionClass->functionType;
-	const uint8_t* functionBytecode = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, 
-		functionType->parameters + 1, functionType->parameterCount - 1);
+	ketl_ir_compiler_adapt_ir(irFunction.function, functionType->parameterCount - 1);
+	const uint8_t* functionBytecode = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, functionType->parameterCount - 1);
 	
 	ketl_function* functionClass = ketl_heap_memory_allocate(&state->hmemory, irFunction.type);
 	*(const uint8_t**)functionClass = functionBytecode;
@@ -434,8 +435,8 @@ ketl_variable* ketl_state_compile_function(ketl_state* state, const char* source
 	// TODO optimization on ir
 
 	ketl_type_function* functionType = irFunction.type.functionClass->functionType;
-	const uint8_t*  functionBytecode = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, 
-		functionType->parameters + 1, functionType->parameterCount - 1);
+	ketl_ir_compiler_adapt_ir(irFunction.function, functionType->parameterCount - 1);
+	const uint8_t*  functionBytecode = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, functionType->parameterCount - 1);
 	
 	ketl_function* functionClass = ketl_heap_memory_allocate(&state->hmemory, irFunction.type);
 	*(const uint8_t**)functionClass = functionBytecode;
@@ -447,6 +448,7 @@ ketl_variable* ketl_state_compile_function(ketl_state* state, const char* source
 
 	//variable->value.pointer = function;
 	//variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
+	//variable->value.stackSize = ketl_type_get_stack_size(type);
 
 	return variable;
 }

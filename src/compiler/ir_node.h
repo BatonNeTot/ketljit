@@ -27,7 +27,7 @@ typedef uint8_t ketl_ir_argument_type;
 
 KETL_DEFINE(ketl_ir_argument) {
 	union {
-		uint64_t stack;
+		int64_t stack;
 		void* pointer;
 
 		bool boolean;
@@ -46,6 +46,7 @@ KETL_DEFINE(ketl_ir_argument) {
 		double float64;
 	};
 	ketl_ir_argument_type type;
+	uint8_t stackSize;
 };
 
 typedef uint8_t ketl_ir_operation_code;
@@ -159,7 +160,8 @@ KETL_DEFINE(ketl_ir_operation) {
 };
 
 KETL_DEFINE(ketl_ir_function) {
-	uint64_t operationsCount;
+	uint32_t operationCount;
+	uint32_t argumentCount;
 	uint64_t stackUsage;
 	ketl_ir_operation* operations;
 	ketl_ir_argument* arguments;
