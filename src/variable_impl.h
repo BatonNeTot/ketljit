@@ -9,18 +9,13 @@
 KETL_FORWARD(ketl_state);
 
 KETL_DEFINE(ketl_ir_variable) {
+	ketl_ir_argument value;
     ketl_type_pointer type;
 	ketl_variable_traits traits;
-	ketl_ir_argument value;
-};
-
-KETL_DEFINE(ketl_variable_cb) {
-	ketl_ir_variable* variable;
-	uint64_t userCount;
 };
 
 KETL_DEFINE(ketl_variable) {
-    ketl_ir_variable* irVariable;
+    ketl_ir_variable irVariable;
 	ketl_state* state;
 };
 

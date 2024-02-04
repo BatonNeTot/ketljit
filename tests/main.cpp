@@ -26,6 +26,8 @@ int main(int argc, char** argv) {
 #endif
 #endif
 
+	KETL::State ketlState;
+
 	auto source1 = R"(
 		i64 inside := 7 + 6;
 		return inside;
@@ -39,37 +41,33 @@ int main(int argc, char** argv) {
 		}
 		return sum;
 )";
+	
+	std::cout << (ketlState.eval(source1).as<int64_t>() == 13) << std::endl;
 
-	for (auto i = 0u; i < 1; ++i) {
-		KETL::State ketlState;
-		
-		std::cout << (ketlState.eval(source1) == 13) << std::endl;
+	std::cout << (ketlState.eval("return inside + 22;").as<int64_t>() == 35) << std::endl;
 
-		std::cout << (ketlState.eval("return inside + 22;") == 35) << std::endl;
+	int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
-		int64_t& testVariable = ketlState.defineVariable("test", 4l);
+	std::vector<ketl_function_parameter> parameters = { 
+		{"a", ketlState.i32(), ketl_variable_traits{false, false}},
+		{"b", ketlState.i32(), ketl_variable_traits{false, false}},
+	};
+	KETL::Variable function = ketlState.compile(source2, parameters.data(), parameters.size());
+	if (!function) {
+		std::cerr << "Can't compile source string" << std::endl;
+		return 0;
+	}
 
-		std::vector<ketl_function_parameter> parameters = { 
-			{"a", ketlState.i32(), ketl_variable_traits{false, false}},
-			{"b", ketlState.i32(), ketl_variable_traits{false, false}},
-		};
-		KETL::Function function = ketlState.compileFunction(source2, parameters.data(), parameters.size());
-		if (!function) {
-			std::cerr << "Can't compile source string" << std::endl;
-			return 0;
-		}
+	{
+		auto result = function.call<int64_t>(2, 3);
+		std::cout << (result == 5) << std::endl;
+		std::cout << (testVariable == 4) << std::endl;
+	}
 
-		{
-			auto result = function.call<int64_t>(2, 3);
-			std::cout << (result == 5) << std::endl;
-			std::cout << (testVariable == 4) << std::endl;
-		}
-
-		{
-			auto result = function.call<int64_t>(10, 4);
-			std::cout << (result == 14) << std::endl;
-			std::cout << (testVariable == 14) << std::endl;
-		}
+	{
+		auto result = function.call<int64_t>(10, 4);
+		std::cout << (result == 14) << std::endl;
+		std::cout << (testVariable == 14) << std::endl;
 	}
 
 	return 0;

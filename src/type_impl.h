@@ -4,6 +4,8 @@
 
 #include "ketl/type.h"
 
+#include "compiler/ir_node.h"
+
 #include "containers/int_map.h"
 #include "ketl/utils.h"
 
@@ -91,5 +93,9 @@ KETL_DEFINE(ketl_type_class) {
 	ketl_type_field* fields;
 	ketl_type_function** methods;
 };
+
+KETL_FORWARD(ketl_state);
+
+ketl_ir_argument_type get_ir_argument_type(ketl_state* state, ketl_type_pointer type);
 
 #endif // ketl_type_impl_h

@@ -3,7 +3,7 @@
 
 #include "compiler/ir_node.h"
 #include "compiler/ir_builder.h"
-#include "ketl/function.h"
+#include "function_impl.h"
 #include "ketl/type.h"
 
 #include <string.h>

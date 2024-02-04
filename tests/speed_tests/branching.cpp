@@ -15,7 +15,7 @@ static auto registerTests = []() {
 		int64_t value = 0u;
 		state.defineVariable("value", value);
 
-		auto evaluationResult = state.compileFunction(R"(
+		auto evaluationResult = state.compile(R"(
 			var testValue := 0;
 
 			if (value != 0) {
@@ -31,12 +31,12 @@ static auto registerTests = []() {
 			return;
 		}*/
 
-		auto command = evaluationResult;
+		auto& command = evaluationResult;
 		{
 			auto start = std::chrono::high_resolution_clock::now();
 			for (auto i = 0u; i < N; ++i) {
 				value = randValue();
-				command.callVoid();
+				command.call<void>();
 			}
 			auto finish = std::chrono::high_resolution_clock::now();
 			ketlTime = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count() / 1000000.0;

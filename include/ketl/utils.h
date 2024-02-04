@@ -79,7 +79,11 @@
 #define KETL_DEFINE(name) KETL_FORWARD(name); struct KETL_CONCAT(KETL_STRUCT_PREFIX, name)
 
 #ifdef NDEBUG
-    #define KETL_NODEFAULT() default: __assume(0);
+    #if !KETL_OS_WINDOWS
+        #define KETL_NODEFAULT() default: __builtin_unreachable();
+    #else
+        #define KETL_NODEFAULT() default: __assume(0);
+    #endif
 #else
     // This code is supposed to be unreachable, so assert
     #define KETL_NODEFAULT() default: KETL_DEBUGBREAK(); //TODO assert

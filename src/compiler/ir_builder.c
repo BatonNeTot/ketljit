@@ -208,7 +208,7 @@ static inline Literal parseLiteral(KETLIRFunctionWIP* wip, const char* value, si
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT32;
 		literal.value.stackSize = 4;
 	}
-	else if (INT64_MIN <= intValue && intValue <= INT16_MAX) {
+	else if (INT64_MIN <= intValue && intValue <= INT64_MAX) {
 		literal.type.primitive = &wip->builder->state->primitives.i64_t;
 		literal.value.int64 = intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT64;
@@ -392,7 +392,6 @@ static TypeCastingTargetList possibleCastingForValue(ketl_ir_builder* irBuilder,
 	targets.begin = targets.last = NULL;
 
 	bool numberLiteral = isLiteralType(&variable->value, variable->type, irBuilder->state);
-#define MAX_SIZE_OF_NUMBER_LITERAL 8
 
 	ketl_cast_operator** castOperators = ketl_int_map_get(&irBuilder->state->castOperators, (ketl_int_map_key)variable->type.base);
 	if (castOperators != NULL) {
@@ -414,7 +413,29 @@ static TypeCastingTargetList possibleCastingForValue(ketl_ir_builder* irBuilder,
 			newTarget->next = targets.begin;
 			targets.begin = newTarget;
 
-			newTarget->score = !numberLiteral || it->outputType.primitive->size != MAX_SIZE_OF_NUMBER_LITERAL;
+			if (numberLiteral) {
+				switch(variable->value.type) {
+					case KETL_IR_ARGUMENT_TYPE_INT8:
+					case KETL_IR_ARGUMENT_TYPE_INT16:
+					case KETL_IR_ARGUMENT_TYPE_INT32:
+					case KETL_IR_ARGUMENT_TYPE_INT64:
+						newTarget->score = it->outputType.primitive != &irBuilder->state->primitives.i64_t;
+						break;
+					case KETL_IR_ARGUMENT_TYPE_UINT8:
+					case KETL_IR_ARGUMENT_TYPE_UINT16:
+					case KETL_IR_ARGUMENT_TYPE_UINT32:
+					case KETL_IR_ARGUMENT_TYPE_UINT64:
+						newTarget->score = it->outputType.primitive != &irBuilder->state->primitives.u64_t;
+						break;
+					case KETL_IR_ARGUMENT_TYPE_FLOAT32:
+					case KETL_IR_ARGUMENT_TYPE_FLOAT64:
+						newTarget->score = it->outputType.primitive != &irBuilder->state->primitives.f64_t;
+						break;
+					KETL_NODEFAULT()
+				}
+			} else {
+				newTarget->score = 1;
+			}
 		}
 	}
 
@@ -428,7 +449,29 @@ static TypeCastingTargetList possibleCastingForValue(ketl_ir_builder* irBuilder,
 	newTarget->next = targets.begin;
 	targets.begin = newTarget;
 
-	newTarget->score = numberLiteral && variable->type.primitive->size != MAX_SIZE_OF_NUMBER_LITERAL;
+	if (numberLiteral) {
+		switch(variable->value.type) {
+			case KETL_IR_ARGUMENT_TYPE_INT8:
+			case KETL_IR_ARGUMENT_TYPE_INT16:
+			case KETL_IR_ARGUMENT_TYPE_INT32:
+			case KETL_IR_ARGUMENT_TYPE_INT64:
+				newTarget->score = variable->type.primitive != &irBuilder->state->primitives.i64_t;
+				break;
+			case KETL_IR_ARGUMENT_TYPE_UINT8:
+			case KETL_IR_ARGUMENT_TYPE_UINT16:
+			case KETL_IR_ARGUMENT_TYPE_UINT32:
+			case KETL_IR_ARGUMENT_TYPE_UINT64:
+				newTarget->score = variable->type.primitive != &irBuilder->state->primitives.u64_t;
+				break;
+			case KETL_IR_ARGUMENT_TYPE_FLOAT32:
+			case KETL_IR_ARGUMENT_TYPE_FLOAT64:
+				newTarget->score = variable->type.primitive != &irBuilder->state->primitives.f64_t;
+				break;
+			KETL_NODEFAULT()
+		}
+	} else {
+		newTarget->score = 0;
+	}
 
 	return targets;
 }

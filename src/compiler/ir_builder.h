@@ -6,8 +6,8 @@
 
 #include "compiler/syntax_node.h"
 #include "ketl/type.h"
-#include "ketl/function.h"
-#include "ketl/variable.h"
+#include "function_impl.h"
+#include "variable_impl.h"
 
 #include "containers/object_pool.h"
 #include "containers/int_map.h"

@@ -13,37 +13,76 @@ namespace KETL {
 
 	class State;
 
-	class Function {
+	class Variable;
+
+	namespace {
+		template <class R, class... Args>
+		class __VariableCallHelper {};
+
+		template <class... Args>
+		class __VariableCallHelper<void, Args...> {
+		private:
+			static void callVariable(ketl_variable* variable, Args... args) {
+				ketl_variable_call_void(variable, args...);
+			}
+
+			friend Variable;
+		};
+
+		template <class... Args>
+		class __VariableCallHelper<int64_t, Args...> {
+		private:
+			static int64_t callVariable(ketl_variable* variable, Args... args) {
+				return ketl_variable_call_i64(variable, args...);
+			}
+
+			friend Variable;
+		};
+
+		template <class T>
+		class __VariableGetHelper {};
+
+		template <>
+		class __VariableGetHelper<int64_t> {
+		private:
+			static int64_t getVariableAs(ketl_variable* variable) {
+				return ketl_variable_get_as_i64(variable);
+			}
+
+			friend Variable;
+		};
+	}
+
+	class Variable {
 	public:
+		Variable(const Variable& other) = delete; // TODO implement copz function for copy constructor
+		Variable(Variable&& other) : _variableImpl(other._variableImpl) {
+			other._variableImpl = nullptr;
+		}
+		~Variable() {
+			ketl_variable_free(_variableImpl);
+		}
 
 		template <class R, class... Args>
 		R call(Args... args) {
-			if constexpr (sizeof...(Args) == 0) {
-				return KETL_CALL_FUNCTION(_functionImpl, R);
-			} else {
-				return KETL_CALL_FUNCTION_ARGS(_functionImpl, R, args...);
-			}
+			return __VariableCallHelper<R, Args...>::callVariable(_variableImpl, args...);
 		}
 
-		template <class... Args>
-		void callVoid(Args... args) {
-			if constexpr (sizeof...(Args) == 0) {
-				return KETL_CALL_FUNCTION(_functionImpl, void);
-			} else {
-				return KETL_CALL_FUNCTION_ARGS(_functionImpl, void, args...);
-			}
+		template <class T>
+		T as() {
+			return __VariableGetHelper<T>::getVariableAs(_variableImpl);
 		}
 
 		explicit operator bool() {
-			return _functionImpl;
+			return _variableImpl;
 		}
 
 	private:
-		Function(ketl_function* function) : _functionImpl(function) {}
+		Variable(ketl_variable* variable) : _variableImpl(variable) {}
 
 		friend State;
 
-		ketl_function* _functionImpl;
+		ketl_variable* _variableImpl;
 	};
 
 	class State {
@@ -71,16 +110,20 @@ namespace KETL {
 			return defineVariable(name, T());
 		}
 
-		Function compileFunction(const std::string &source) {
-			return ketlCompileFunction(_stateImpl, source.c_str(), nullptr, 0);
+		Variable compile(const std::string &source) {
+			return ketl_state_compile_function(_stateImpl, source.c_str(), nullptr, 0);
 		}
 
-		Function compileFunction(const std::string &source, ketl_function_parameter* parameters, uint64_t parametersCount) {
-			return ketlCompileFunction(_stateImpl, source.c_str(), parameters, parametersCount);
+		Variable compile(const std::string &source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+			return ketl_state_compile_function(_stateImpl, source.c_str(), parameters, parametersCount);
 		}
 
-		int64_t eval(const std::string &source) {
+		Variable eval(const std::string &source) {
 			return ketl_state_eval(_stateImpl, source.c_str());
+		}
+
+		Variable evalLocal(const std::string &source) {
+			return ketl_state_eval_local(_stateImpl, source.c_str());
 		}
 
 		ketl_type_pointer i32() {

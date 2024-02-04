@@ -380,32 +380,80 @@ void* ketl_state_define_internal_variable(ketl_state* state, const char* name, k
 	return pointer;
 }
 
-static ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespace* namespace, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
+KETL_DEFINE(FunctionVar) {
+	ketl_function* function;
+	ketl_type_pointer type;
+};
 
-ketl_function* ketlCompileFunction(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
-	return ketl_state_compile_function_impl(state, NULL, source, parameters, parametersCount);
+static FunctionVar ketl_state_compile_function_impl(ketl_state* state, ketl_namespace* namespace, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount);
+
+static ketl_variable* ketl_state_eval_impl(ketl_state* state, ketl_namespace* namespace, const char* source);
+
+ketl_variable* ketl_state_eval_local(ketl_state* state, const char* source) {
+	return ketl_state_eval_impl(state, NULL, source);
 }
 
-int64_t ketl_state_eval_local(ketl_state* state, const char* source) {
-	ketl_function* function = ketl_state_compile_function_impl(state, NULL, source, NULL, 0);
-	return function ? KETL_CALL_FUNCTION(function, int64_t) : -1;
+ketl_variable* ketl_state_eval(ketl_state* state, const char* source) {
+	return ketl_state_eval_impl(state, &state->globalNamespace, source);
 }
 
+ketl_variable* ketl_state_eval_impl(ketl_state* state, ketl_namespace* namespace, const char* source) {
+	FunctionVar functionVar = ketl_state_compile_function_impl(state, namespace, source, NULL, 0);
+	if (functionVar.function == NULL) {
+		return NULL;
+	}
 
-int64_t ketl_state_eval(ketl_state* state, const char* source) {
-	ketl_function* function = ketl_state_compile_function_impl(state, &state->globalNamespace, source, NULL, 0);
-	return function ? KETL_CALL_FUNCTION(function, int64_t) : -1;
+	ketl_type_pointer returnType = functionVar.type.functionClass->functionType->parameters[0].type;
+
+	if (returnType.primitive == &state->primitives.void_t) {
+		ketl_function_call(functionVar.function);
+		return NULL;
+	}
+
+	ketl_variable* variable = malloc(sizeof(ketl_variable));
+	variable->state = state;
+
+	variable->irVariable.value.uint64 = ketl_function_call(functionVar.function);
+	variable->irVariable.value.type = get_ir_argument_type(state, returnType);
+	variable->irVariable.value.stackSize = ketl_type_get_stack_size(returnType);
+	variable->irVariable.type = returnType;
+	variable->irVariable.traits.hash = 0;
+
+	return variable;
 }
 
-ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespace* namespace, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+ketl_variable* ketl_state_compile_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+	FunctionVar functionVar = ketl_state_compile_function_impl(state, NULL, source, parameters, parametersCount);
+	if (functionVar.function == NULL) {
+		return NULL;
+	}
+
+	ketl_variable* variable = malloc(sizeof(ketl_variable));
+	variable->state = state;
+
+	variable->irVariable.value.pointer = functionVar.function;
+	variable->irVariable.value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
+	variable->irVariable.value.stackSize = ketl_type_get_stack_size(functionVar.type);
+	variable->irVariable.type = functionVar.type;
+	variable->irVariable.traits.hash = 0;
+
+	return variable;
+}
+
+FunctionVar ketl_state_compile_function_impl(ketl_state* state, ketl_namespace* namespace, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
+	FunctionVar functionVar = {
+		.function = NULL,
+		.type = KETL_CREATE_TYPE_PTR(NULL)
+	};
+	
 	ketl_syntax_node* root = ketl_syntax_solver_solve(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
 	if (!root) {
-		return NULL;
+		return functionVar;
 	}
 
 	ketl_ir_function_definition irFunction = ketl_ir_builder_build(&state->compiler.irBuilder, namespace, KETL_CREATE_TYPE_PTR(NULL), root, parameters, parametersCount);
 	if (irFunction.function == NULL) {
-		return NULL;
+		return functionVar;
 	}
 
 	// TODO optimization on ir
@@ -418,39 +466,11 @@ ketl_function* ketl_state_compile_function_impl(ketl_state* state, ketl_namespac
 	*(const uint8_t**)functionClass = functionBytecode;
 	
 	free(irFunction.function);
-	return functionClass;
-}
 
-ketl_variable* ketl_state_compile_function(ketl_state* state, const char* source, ketl_function_parameter* parameters, uint64_t parametersCount) {
-	ketl_syntax_node* root = ketl_syntax_solver_solve(source, KETL_NULL_TERMINATED_LENGTH, &state->compiler.bytecodeCompiler.syntaxSolver, &state->compiler.bytecodeCompiler.syntaxNodePool);
-	if (!root) {
-		return NULL;
-	}
+	functionVar.function = functionClass;
+	functionVar.type = irFunction.type;
 
-	ketl_ir_function_definition irFunction = ketl_ir_builder_build(&state->compiler.irBuilder, NULL, KETL_CREATE_TYPE_PTR(NULL), root, parameters, parametersCount);
-	if (irFunction.function == NULL) {
-		return NULL;
-	}
-
-	// TODO optimization on ir
-
-	ketl_type_function* functionType = irFunction.type.functionClass->functionType;
-	ketl_ir_compiler_adapt_ir(irFunction.function, functionType->parameterCount - 1);
-	const uint8_t*  functionBytecode = ketl_ir_compiler_compile(&state->irCompiler, irFunction.function, functionType->parameterCount - 1);
-	
-	ketl_function* functionClass = ketl_heap_memory_allocate(&state->hmemory, irFunction.type);
-	*(const uint8_t**)functionClass = functionBytecode;
-	(void)functionClass;
-
-	free(irFunction.function);
-
-	ketl_variable* variable = NULL;
-
-	//variable->value.pointer = function;
-	//variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
-	//variable->value.stackSize = ketl_type_get_stack_size(type);
-
-	return variable;
+	return functionVar;
 }
 
 ketl_type_pointer ketl_state_get_type_i32(ketl_state* state) {

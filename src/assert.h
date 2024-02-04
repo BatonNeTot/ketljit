@@ -17,7 +17,7 @@
 
 #define KETL_CHECK_VOE(x) (!(x))
 
-#define KETL_CHECK_VOEM(x, message) (!(x))
+#define KETL_CHECK_VOEM(x, string_literal_message, ...) (!(x))
 
 
 #endif // NDEBUG
