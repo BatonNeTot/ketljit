@@ -43,12 +43,15 @@ void* ketl_stack_iterator_get_next(ketl_stack_iterator* iterator);
 
 void ketl_stack_iterator_skip_next(ketl_stack_iterator* iterator);
 
-// TODO remove it
-#define KETL_ITERATOR_STACK_PEEK(variableType, variableName, iterator)\
-variableType variableName = NULL;\
+// TODO remove it; afterthought, why?
+#define KETL_ITERATOR_STACK_PEEK(variableName, iterator)\
 do { \
 ketl_stack_iterator __temp = (iterator);\
 variableName = ketl_stack_iterator_get_next(&__temp);\
 } while (0)
+
+#define KETL_ITERATOR_STACK_PEEK_VARIABLE(variableType, variableName, iterator)\
+variableType variableName = NULL;\
+KETL_ITERATOR_STACK_PEEK(variableName, iterator)
 
 #endif // ketl_stack_h

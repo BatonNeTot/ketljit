@@ -6,7 +6,7 @@
 
 int64_t ketl_variable_get_as_i64(ketl_variable* variable) {
     switch (variable->irVariable.value.type) {
-    case KETL_IR_ARGUMENT_TYPE_POINTER:
+    case KETL_IR_ARGUMENT_TYPE_REFERENCE:
         return *(int64_t*)variable->irVariable.value.pointer;
     case KETL_IR_ARGUMENT_TYPE_INT8:
         return variable->irVariable.value.int8;

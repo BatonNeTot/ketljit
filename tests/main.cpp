@@ -13,11 +13,15 @@
 // TODO rethink iterators using int map iterator as an example
 // TODO rethink getOrCreate in int map
 
+int64_t testGetter(void*) {
+	return 42;
+}
+
 int main(int argc, char** argv) {
 	(void)argc;
 	(void)argv;
 
-#if 1
+#if 0
 	launchCheckTests();
 #ifdef NDEBUG
 	launchSpeedTests(10000000);
@@ -28,6 +32,7 @@ int main(int argc, char** argv) {
 
 	KETL::State ketlState;
 
+/*
 	auto source1 = R"(
 		i64 inside := 7 + 6;
 		return inside;
@@ -45,7 +50,17 @@ int main(int argc, char** argv) {
 	std::cout << (ketlState.eval(source1).as<int64_t>() == 13) << std::endl;
 
 	std::cout << (ketlState.eval("return inside + 22;").as<int64_t>() == 35) << std::endl;
+*/
 
+	ketl_variable_features output;
+	output.type = ketlState.i64();
+	output.traits.hash = 0;
+	auto function = &testGetter;
+	auto functionClass = &function;
+	KETL::Variable testVar = ketlState.defineFunction("testGetter", ketlState.getFunctionType(output, nullptr, 0), functionClass);
+	std::cout << testVar.call<int64_t>() << std::endl;
+	ketlState.eval("testGetter();");
+/*
 	int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
 	std::vector<ketl_function_parameter> parameters = { 
@@ -69,6 +84,6 @@ int main(int argc, char** argv) {
 		std::cout << (result == 14) << std::endl;
 		std::cout << (testVariable == 14) << std::endl;
 	}
-
+*/
 	return 0;
 }

@@ -2,9 +2,16 @@
 #ifndef ketl_variable_h
 #define ketl_variable_h
 
+#include "ketl/type.h"
+
 #include "ketl/utils.h"
 
 KETL_FORWARD(ketl_variable);
+
+KETL_DEFINE(ketl_variable_features) {
+	ketl_type_pointer type;
+	ketl_variable_traits traits;
+};
 
 int64_t ketl_variable_get_as_i64(ketl_variable* variable);
 
