@@ -38,9 +38,9 @@ KETL_DEFINE(ketl_type_primitive) {
 };
 
 KETL_DEFINE(ketl_type_parameters) {
-	uint32_t offset;
-	ketl_variable_traits traits;
 	ketl_type_pointer type;
+	ketl_variable_traits traits;
+	uint32_t offset;
 };
 
 KETL_DEFINE(ketl_type_function) {

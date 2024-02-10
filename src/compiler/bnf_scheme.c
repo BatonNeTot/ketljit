@@ -60,16 +60,22 @@ ketl_bnf_node* ketl_bnf_build_scheme(ketl_object_pool* bnfNodePool) {
 			SET_TYPE(KETL_BNF_NODE_TYPE_OPTIONAL);
 			{
 				CREATE_CHILD();
-				SET_REF(type);
-
-				CREATE_SIBLING();
-				SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
+				SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
 				{
 					CREATE_CHILD();
-					SET_CONSTANT(",");
+					SET_REF(type);
 
 					CREATE_SIBLING();
-					SET_REF(type);
+					SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
+					{
+						CREATE_CHILD();
+						SET_CONSTANT(",");
+
+						CREATE_SIBLING();
+						SET_REF(type);
+
+						CLOSE_CHILD();
+					}
 
 					CLOSE_CHILD();
 				}
@@ -174,17 +180,22 @@ ketl_bnf_node* ketl_bnf_build_scheme(ketl_object_pool* bnfNodePool) {
 				SET_TYPE(KETL_BNF_NODE_TYPE_OPTIONAL);
 				{
 					CREATE_CHILD();
-					SET_REF(precedenceExpression1);
-
-					CREATE_SIBLING();
-					SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
+					SET_TYPE(KETL_BNF_NODE_TYPE_CONCAT);
 					{
 						CREATE_CHILD();
-						SET_CONSTANT(",");
-
-						CREATE_SIBLING();
 						SET_REF(precedenceExpression1);
 
+						CREATE_SIBLING();
+						SET_TYPE(KETL_BNF_NODE_TYPE_REPEAT);
+						{
+							CREATE_CHILD();
+							SET_CONSTANT(",");
+
+							CREATE_SIBLING();
+							SET_REF(precedenceExpression1);
+
+							CLOSE_CHILD();
+						}
 						CLOSE_CHILD();
 					}
 

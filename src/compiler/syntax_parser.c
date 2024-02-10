@@ -80,7 +80,7 @@ ketl_syntax_node* ketl_syntax_parse(ketl_object_pool* syntaxNodePool, ketl_stack
 				break;
 			}
 
-			KETL_ITERATOR_STACK_PEEK(ketl_bnf_parser_state*, next, *bnfStackIterator);
+			KETL_ITERATOR_STACK_PEEK_VARIABLE(ketl_bnf_parser_state*, next, *bnfStackIterator);
 
 			if (next->parent != state) {
 				break;
@@ -117,7 +117,7 @@ ketl_syntax_node* ketl_syntax_parse(ketl_object_pool* syntaxNodePool, ketl_stack
 			state = ketl_stack_iterator_get_next(bnfStackIterator); // '{' or optional
 			if (state->bnfNode->type == KETL_BNF_NODE_TYPE_OPTIONAL) {
 				// expression
-				KETL_ITERATOR_STACK_PEEK(ketl_bnf_parser_state*, next, *bnfStackIterator);
+				KETL_ITERATOR_STACK_PEEK_VARIABLE(ketl_bnf_parser_state*, next, *bnfStackIterator);
 
 				ketl_syntax_node* node = NULL;
 				if (next->parent == state) {
@@ -206,7 +206,7 @@ ketl_syntax_node* ketl_syntax_parse(ketl_object_pool* syntaxNodePool, ketl_stack
 		ketl_stack_iterator_skip_next(bnfStackIterator); // ref
 		ketl_syntax_node* left = ketl_syntax_parse(syntaxNodePool, bnfStackIterator, source);
 		ketl_bnf_parser_state* state = ketl_stack_iterator_get_next(bnfStackIterator); // repeat
-		KETL_ITERATOR_STACK_PEEK(ketl_bnf_parser_state*, next, *bnfStackIterator);
+		KETL_ITERATOR_STACK_PEEK_VARIABLE(ketl_bnf_parser_state*, next, *bnfStackIterator);
 
 		if (next->parent == state) {
 			KETL_DEBUGBREAK();
@@ -219,13 +219,35 @@ ketl_syntax_node* ketl_syntax_parse(ketl_object_pool* syntaxNodePool, ketl_stack
 		ketl_stack_iterator_skip_next(bnfStackIterator); // ref
 		ketl_syntax_node* caller = ketl_syntax_parse(syntaxNodePool, bnfStackIterator, source);
 		ketl_bnf_parser_state* state = ketl_stack_iterator_get_next(bnfStackIterator); // repeat
-		KETL_ITERATOR_STACK_PEEK(ketl_bnf_parser_state*, next, *bnfStackIterator);
+		KETL_ITERATOR_STACK_PEEK_VARIABLE(ketl_bnf_parser_state*, next, *bnfStackIterator);
 
-		if (next->parent == state) {
-			KETL_DEBUGBREAK();
+		if (next->parent != state) {
+			return caller;
 		}
 
-		return caller;
+		ketl_syntax_node* callNode = ketl_object_pool_get(syntaxNodePool);
+		callNode->type = KETL_SYNTAX_NODE_TYPE_OPERATOR_CALL;
+		callNode->length = 1;
+		callNode->firstChild = caller;
+		callNode->lineInSource = caller->lineInSource;
+		callNode->columnInSource = caller->columnInSource;
+
+		do {
+			ketl_stack_iterator_skip_next(bnfStackIterator); // concat
+			ketl_stack_iterator_skip_next(bnfStackIterator); // (
+			ketl_bnf_parser_state* argumentsParent = ketl_stack_iterator_get_next(bnfStackIterator); // optional
+			KETL_ITERATOR_STACK_PEEK(next, *bnfStackIterator);
+			if (next->parent != argumentsParent) {
+				ketl_stack_iterator_skip_next(bnfStackIterator); // )
+				continue;
+			}
+
+			KETL_DEBUGBREAK();
+
+			KETL_ITERATOR_STACK_PEEK(next, *bnfStackIterator);
+		} while(next->parent == state);
+
+		return callNode;
 	}
 	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_3: 
 	case KETL_SYNTAX_BUILDER_TYPE_PRECEDENCE_EXPRESSION_4: {
@@ -235,7 +257,7 @@ ketl_syntax_node* ketl_syntax_parse(ketl_object_pool* syntaxNodePool, ketl_stack
 
 		ketl_bnf_parser_state* repeat = ketl_stack_iterator_get_next(bnfStackIterator); // repeat
 		KETL_FOREVER {
-			KETL_ITERATOR_STACK_PEEK(ketl_bnf_parser_state*, next, *bnfStackIterator);
+			KETL_ITERATOR_STACK_PEEK_VARIABLE(ketl_bnf_parser_state*, next, *bnfStackIterator);
 
 			if (next->parent != repeat) {
 				return left;
@@ -272,7 +294,7 @@ ketl_syntax_node* ketl_syntax_parse(ketl_object_pool* syntaxNodePool, ketl_stack
 
 		ketl_bnf_parser_state* repeat = ketl_stack_iterator_get_next(bnfStackIterator); // repeat
 		KETL_FOREVER{
-			KETL_ITERATOR_STACK_PEEK(ketl_bnf_parser_state*, next, *bnfStackIterator);
+			KETL_ITERATOR_STACK_PEEK_VARIABLE(ketl_bnf_parser_state*, next, *bnfStackIterator);
 
 			if (next->parent != repeat) {
 				return root;
@@ -403,7 +425,7 @@ ketl_syntax_node* ketl_syntax_parse(ketl_object_pool* syntaxNodePool, ketl_stack
 		ketl_bnf_parser_state* returnState = ketl_stack_iterator_get_next(bnfStackIterator); // return
 		ketl_bnf_parser_state* optional = ketl_stack_iterator_get_next(bnfStackIterator); // optional
 				
-		KETL_ITERATOR_STACK_PEEK(ketl_bnf_parser_state*, next, *bnfStackIterator); // expression
+		KETL_ITERATOR_STACK_PEEK_VARIABLE(ketl_bnf_parser_state*, next, *bnfStackIterator); // expression
 
 		ketl_syntax_node* node = ketl_object_pool_get(syntaxNodePool);
 		if (next->parent == optional) {

@@ -183,18 +183,40 @@ static inline bool childRejected(ketl_bnf_parser_state* solverState) {
 	}
 }
 
-#if KETL_OS_WINDOWS
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
-
 #define PRINT_SPACE(x) printf("%*s", (x), " ")
 
+#if KETL_OS_WINDOWS
+#include <windows.h>
+
+#define SET_CONSOLE_COLOR(color) SetConsoleTextAttribute(hConsole, (color)))
+
+#define COLOR_DEFAULT 15
+#define COLOR_RED FOREGROUND_RED
+#define COLOR_GREEN FOREGROUND_GREEN
+#define COLOR_BLUE FOREGROUND_BLUE
+
+#else
+
+#define SET_CONSOLE_COLOR(color) printf(color)
+
+#define COLOR_DEFAULT "\033[39m\033[49m"
+#define COLOR_RED "\033[91m"
+#define COLOR_GREEN "\033[92m"
+#define COLOR_BLUE "\033[94m"
+
+#endif
+
 static void printBnfSolution(ketl_stack_iterator* iterator) {
+#if KETL_OS_WINDOWS
 	system("cls");
 
 	HANDLE  hConsole;
 	hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+#else
+	system("clear");
+#endif
 
 	ketl_stack parentStack;
 	ketl_stack_init(&parentStack, sizeof(void*), 16);
@@ -224,56 +246,56 @@ static void printBnfSolution(ketl_stack_iterator* iterator) {
 			(*(ketl_bnf_parser_state**)ketl_stack_push(&parentStack)) = solverState;
 			PRINT_SPACE(currentOffset);
 			printf("REF ");
-			SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+			SET_CONSOLE_COLOR(COLOR_RED);
 			printf("%.*s ", solverState->token->length - solverState->tokenOffset, solverState->token->value + solverState->tokenOffset);
-			SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE);
+			SET_CONSOLE_COLOR(COLOR_BLUE);
 			printf("%d\n", solverState->bnfNode->ref->builder);
-			SetConsoleTextAttribute(hConsole, 15);
+			SET_CONSOLE_COLOR(COLOR_DEFAULT);
 			currentOffset += deltaOffset;
 			break;
 		case KETL_BNF_NODE_TYPE_CONCAT:
 			(*(ketl_bnf_parser_state**)ketl_stack_push(&parentStack)) = solverState;
 			PRINT_SPACE(currentOffset);
 			printf("CONCAT ");
-			SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+			SET_CONSOLE_COLOR(COLOR_RED);
 			printf("%.*s\n", solverState->token->length - solverState->tokenOffset, solverState->token->value + solverState->tokenOffset);
-			SetConsoleTextAttribute(hConsole, 15);
+			SET_CONSOLE_COLOR(COLOR_DEFAULT);
 			currentOffset += deltaOffset;
 			break;
 		case KETL_BNF_NODE_TYPE_OR:
 			(*(ketl_bnf_parser_state**)ketl_stack_push(&parentStack)) = solverState;
 			PRINT_SPACE(currentOffset);
 			printf("OR ");
-			SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+			SET_CONSOLE_COLOR(COLOR_RED);
 			printf("%.*s\n", solverState->token->length - solverState->tokenOffset, solverState->token->value + solverState->tokenOffset);
-			SetConsoleTextAttribute(hConsole, 15);
+			SET_CONSOLE_COLOR(COLOR_DEFAULT);
 			currentOffset += deltaOffset;
 			break;
 		case KETL_BNF_NODE_TYPE_OPTIONAL:
 			(*(ketl_bnf_parser_state**)ketl_stack_push(&parentStack)) = solverState;
 			PRINT_SPACE(currentOffset);
 			printf("OPTIONAL ");
-			SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+			SET_CONSOLE_COLOR(COLOR_RED);
 			printf("%.*s\n", solverState->token->length - solverState->tokenOffset, solverState->token->value + solverState->tokenOffset);
-			SetConsoleTextAttribute(hConsole, 15);
+			SET_CONSOLE_COLOR(COLOR_DEFAULT);
 			currentOffset += deltaOffset;
 			break;
 		case KETL_BNF_NODE_TYPE_REPEAT:
 			(*(ketl_bnf_parser_state**)ketl_stack_push(&parentStack)) = solverState;
 			PRINT_SPACE(currentOffset);
 			printf("REPEAT ");
-			SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+			SET_CONSOLE_COLOR(COLOR_RED);
 			printf("%.*s\n", solverState->token->length - solverState->tokenOffset, solverState->token->value + solverState->tokenOffset);
-			SetConsoleTextAttribute(hConsole, 15);
+			SET_CONSOLE_COLOR(COLOR_DEFAULT);
 			currentOffset += deltaOffset;
 			break;
 		case KETL_BNF_NODE_TYPE_CONSTANT:
 			//break;
 		default:
 			PRINT_SPACE(currentOffset);
-			SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN);
+			SET_CONSOLE_COLOR(COLOR_GREEN);
 			printf("%.*s\n", solverState->token->length - solverState->tokenOffset, solverState->token->value + solverState->tokenOffset);
-			SetConsoleTextAttribute(hConsole, 15);
+			SET_CONSOLE_COLOR(COLOR_DEFAULT);
 		}
 	}
 	ketl_stack_deinit(&parentStack);
@@ -281,18 +303,15 @@ static void printBnfSolution(ketl_stack_iterator* iterator) {
 }
 
 static inline void drawStack(ketl_stack* bnfStateStack) {
+#if 0
 	ketl_stack_iterator iterator;
 	ketl_stack_iterator_init(&iterator, bnfStateStack);
 	printBnfSolution(&iterator);
-}
-
 #else
-
-static inline void drawStack(ketl_stack* bnfStateStack) {
 	(void)bnfStateStack;
-}
-
+	(void)printBnfSolution;
 #endif
+}
 
 bool ketl_bnf_parse(ketl_stack* bnfStateStack, ketl_bnf_error_info* error) {
 	drawStack(bnfStateStack);

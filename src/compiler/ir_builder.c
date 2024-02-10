@@ -82,6 +82,7 @@ void ketl_ir_builder_deinit(ketl_ir_builder* irBuilder) {
 static inline ketl_ir_undefined_delegate* wrapInDelegateUValue(ketl_ir_builder* irBuilder, ketl_ir_undefined_value* uvalue) {
 	ketl_ir_undefined_delegate* udelegate = ketl_object_pool_get(&irBuilder->udelegatePool);
 	udelegate->caller = uvalue;
+	udelegate->action = KETL_IR_UNDEFINED_DELEGATE_ACTION_NONE;
 	udelegate->arguments = NULL;
 	udelegate->next = NULL;
 
@@ -491,6 +492,10 @@ static CastingOption* possibleCastingForDelegate(ketl_ir_builder* irBuilder, ket
 
 		ketl_ir_variable* outputValue = callerValue;
 
+		if (callerType.base->kind == KETL_TYPE_KIND_FUNCTION_CLASS) {
+			callerType.function = callerType.functionClass->functionType;
+			callerType.base->kind = KETL_TYPE_KIND_FUNCTION;
+		}
 		if (callerType.base->kind == KETL_TYPE_KIND_FUNCTION) {
 			KETL_DEBUGBREAK();
 		}
@@ -612,7 +617,7 @@ static CastingOption* getBestCastingOptionForDelegate(ketl_ir_builder* irBuilder
 	return best;
 }
 
-static ketl_ir_undefined_delegate* buildIRCommandTree(KETLIRFunctionWIP* wip, ketl_ir_operation_range* operationRange, ketl_syntax_node* syntaxNodeRoot) {
+static ketl_ir_undefined_delegate* buildIRExpressionTree(KETLIRFunctionWIP* wip, ketl_ir_operation_range* operationRange, ketl_syntax_node* syntaxNodeRoot) {
 	ketl_syntax_node* it = syntaxNodeRoot;
 	switch (it->type) {
 	case KETL_SYNTAX_NODE_TYPE_ID: {
@@ -658,9 +663,9 @@ static ketl_ir_undefined_delegate* buildIRCommandTree(KETLIRFunctionWIP* wip, ke
 		ketl_scoped_variable* resultVariable = createTempVariable(wip);
 
 		ketl_syntax_node* lhsNode = it->firstChild;
-		ketl_ir_undefined_delegate* lhs = buildIRCommandTree(wip, &innerRange, lhsNode);
+		ketl_ir_undefined_delegate* lhs = buildIRExpressionTree(wip, &innerRange, lhsNode);
 		ketl_syntax_node* rhsNode = lhsNode->nextSibling;
-		ketl_ir_undefined_delegate* rhs = buildIRCommandTree(wip, &innerRange, rhsNode);
+		ketl_ir_undefined_delegate* rhs = buildIRExpressionTree(wip, &innerRange, rhsNode);
 
 		ketl_object_pool_reset(&wip->builder->castingPool);
 		BinaryOperatorDeduction deductionStruct = deduceInstructionCode2(wip->builder, it->type, lhs, rhs);
@@ -692,10 +697,38 @@ static ketl_ir_undefined_delegate* buildIRCommandTree(KETLIRFunctionWIP* wip, ke
 
 		operation->extraNext = NULL;
 
-		return wrapInDelegateValue(wip->builder, &resultVariable->variable);;
+		return wrapInDelegateValue(wip->builder, &resultVariable->variable);
+	}
+	case KETL_SYNTAX_NODE_TYPE_OPERATOR_CALL: {
+		ketl_ir_operation_range innerRange;
+		initInnerOperationRange(wip->builder, operationRange, &innerRange);
+		//ketl_scoped_variable* resultVariable = createTempVariable(wip);
+
+		ketl_syntax_node* callerNode = it->firstChild;
+		ketl_ir_undefined_delegate* caller = buildIRExpressionTree(wip, &innerRange, callerNode);
+
+		if (caller->action != KETL_IR_UNDEFINED_DELEGATE_ACTION_NONE) {
+			// TODO 
+			// check is there enough arguments
+			// if yes -> call now, then gather arguments for new call
+			// if no -> compare call action,
+			// if it is "call" -> change nothing, just add more
+			// if it is different -> compilation error
+		}
+
+		caller->action = KETL_IR_UNDEFINED_DELEGATE_ACTION_CALL;
+
+		for (ketl_syntax_node* argumentsNode = callerNode->nextSibling;
+			argumentsNode != NULL; argumentsNode = callerNode->nextSibling) {
+			ketl_ir_undefined_delegate* argument = buildIRExpressionTree(wip, &innerRange, callerNode);
+			(void) argument;
+			// TODO collect arguments
+			KETL_DEBUGBREAK();
+		}
+
+		return caller;
 	}
 	KETL_NODEFAULT()
-	KETL_DEBUGBREAK();
 	}
 	return NULL;
 }
@@ -798,7 +831,7 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, ketl_ir_operation_r
 	ketl_scoped_variable* variable = createLocalVariable(wip);
 
 	ketl_syntax_node* expressionNode = idNode->nextSibling;
-	ketl_ir_undefined_delegate* expression = buildIRCommandTree(wip, &innerRange, expressionNode);
+	ketl_ir_undefined_delegate* expression = buildIRExpressionTree(wip, &innerRange, expressionNode);
 
 	const char* name = ketl_atomic_strings_get(&wip->builder->state->strings, idNode->value, idNode->length);
 
@@ -880,6 +913,34 @@ static void createVariableDefinition(KETLIRFunctionWIP* wip, ketl_ir_operation_r
 	operation->arguments[1] = &expressionVarible->value;
 
 	operation->extraNext = NULL;
+}
+
+static ketl_ir_undefined_delegate* doCall(KETLIRFunctionWIP* wip, ketl_ir_operation_range* operationRange, ketl_ir_undefined_delegate* delegate) {
+
+	//ketl_ir_operation_range innerRange;
+	//initInnerOperationRange(wip->builder, operationRange, &innerRange);
+	ketl_scoped_variable* resultVariable = createTempVariable(wip);
+	// TODO define delegate first
+
+	// TODO convert caller and arguments
+
+	// TODO call
+
+	//deinitInnerOperationRange(wip->builder, operationRange, &innerRange);
+
+	ketl_ir_operation* operation = createOperationFromRange(wip->builder, operationRange);
+	operation->code = KETL_IR_CODE_CALL;
+	operation->argumentCount = 2; // actual argument count plus caller plus result
+	operation->arguments = ketl_object_pool_get_array(&wip->builder->argumentPointersPool, 1);
+	operation->arguments[1] = &delegate->caller->variable->value;
+
+	operation->arguments[0] = &resultVariable->variable.value;
+	resultVariable->variable.type = delegate->caller->variable->type.function->parameters[0].type;
+	resultVariable->variable.traits = delegate->caller->variable->type.function->parameters[0].traits;
+
+	operation->extraNext = NULL;
+
+	return wrapInDelegateValue(wip->builder, &resultVariable->variable);
 }
 
 static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, ketl_ir_operation_range* operationRange, ketl_syntax_node* syntaxNode);
@@ -968,7 +1029,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, ketl_ir_operatio
 		initInnerOperationRange(wip->builder, operationRange, &innerRange);
 
 		ketl_syntax_node* expressionNode = syntaxNode->firstChild;
-		ketl_ir_undefined_delegate* expression = buildIRCommandTree(wip, &innerRange, expressionNode);
+		ketl_ir_undefined_delegate* expression = buildIRExpressionTree(wip, &innerRange, expressionNode);
 
 		// TODO find more clever way to have typePtr literals or at least make inline function
 		CastingOption* expressionCasting = castDelegateToVariable(wip->builder, expression, KETL_CREATE_TYPE_PTR(&wip->builder->state->primitives.bool_t));
@@ -1066,7 +1127,7 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, ketl_ir_operatio
 
 			ketl_ir_operation_range innerRange;
 			initInnerOperationRange(wip->builder, operationRange, &innerRange);
-			ketl_ir_undefined_delegate* expression = buildIRCommandTree(wip, &innerRange, expressionNode);
+			ketl_ir_undefined_delegate* expression = buildIRExpressionTree(wip, &innerRange, expressionNode);
 			deinitInnerOperationRange(wip->builder, operationRange, &innerRange);
 
 			ketl_ir_operation* returnOperation = createLastOperationFromRange(operationRange);
@@ -1104,7 +1165,20 @@ static void buildIRCommandLoopIteration(KETLIRFunctionWIP* wip, ketl_ir_operatio
 		wip->vars.tempVariables = NULL;
 		wip->vars.localVariables = NULL;
 
-		buildIRCommandTree(wip, operationRange, syntaxNode);
+		ketl_ir_operation_range innerRange;
+		initInnerOperationRange(wip->builder, operationRange, &innerRange);
+
+		ketl_ir_undefined_delegate* output = buildIRExpressionTree(wip, &innerRange, syntaxNode);
+		if (output->action != KETL_IR_UNDEFINED_DELEGATE_ACTION_NONE) {
+			doCall(wip, &innerRange, output);
+		}
+
+		deinitInnerOperationRange(wip->builder, operationRange, &innerRange);
+		ketl_ir_operation* operation = createOperationFromRange(wip->builder, operationRange);
+		operation->code = KETL_IR_CODE_NONE;
+		operation->argumentCount = 0;
+		operation->arguments = NULL;
+		operation->extraNext = NULL;
 
 		restoreLocalScopeContext(wip, currentStack, stackRoot);
 	}
@@ -1570,17 +1644,21 @@ ketl_ir_function_definition ketl_ir_builder_build(ketl_ir_builder* irBuilder, ke
 		ketl_int_map_iterator_next(&operationIterator);
 	}
 
-	++parametersCount;
-	ketl_type_parameters* typeParameters = malloc(sizeof(ketl_type_parameters) * parametersCount);
-	typeParameters[0].type = returnType;
-	typeParameters[0].traits.values.isNullable = false;
-	typeParameters[0].traits.values.isConst = false;
-	for (uint64_t i = 1u; i < parametersCount; ++i) {
-		typeParameters[i].type = parameters[i - 1].type;
-		typeParameters[i].traits = parameters[i - 1].traits;
+	ketl_variable_features output;
+	output.type = returnType;
+	output.traits.values.isNullable = false;
+	output.traits.values.isConst = false;
+	if (parametersCount > 0) {
+		ketl_variable_features* parameterFeatures = malloc(sizeof(ketl_variable_features) * parametersCount);
+		for (uint64_t i = 0u; i < parametersCount; ++i) {
+			parameterFeatures[i].type = parameters[i].type;
+			parameterFeatures[i].traits = parameters[i].traits;
+		}
+		functionDefinition.type = ketl_state_get_type_function(irBuilder->state, output, parameterFeatures, parametersCount);
+		free(parameters);
+	} else {
+		functionDefinition.type = ketl_state_get_type_function(irBuilder->state, output, NULL, 0);
 	}
-	functionDefinition.type = getFunctionType(irBuilder->state, typeParameters, parametersCount);
-	free(typeParameters);
 
 	ketl_type_function_class* functionClass = ketl_heap_memory_allocate(&irBuilder->state->hmemory, 
 		KETL_CREATE_TYPE_PTR(&irBuilder->state->metaTypes.functionClass)); 

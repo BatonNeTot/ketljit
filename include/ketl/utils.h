@@ -61,7 +61,7 @@
     #include <debugapi.h>
     #define KETL_DEBUGBREAK() __debugbreak()
 #else
-    #define KETL_DEBUGBREAK() __asm__ volatile("int $0x03")
+    #define KETL_DEBUGBREAK() do { __asm__ volatile("int $0x03"); int nothing = 0; (void)nothing; } while(0)
 #endif
 
 #define __KETL_STR_VALUE(x) #x

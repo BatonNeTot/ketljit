@@ -93,6 +93,4 @@ KETL_DEFINE(ketl_state) {
 	ketl_int_map typeFunctionSearchMap;
 };
 
-ketl_type_pointer getFunctionType(ketl_state* state, ketl_type_parameters* parameters, uint64_t parametersCount);
-
 #endif // ketl_ketl_impl_h

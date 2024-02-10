@@ -105,6 +105,11 @@ namespace KETL {
 			return variable;
 		}
 
+		template <class R>
+		Variable defineFunction(const char* name, ketl_type_pointer type, R(**function)(void*)) {
+			return ketl_state_define_external_variable(_stateImpl, name, type, reinterpret_cast<void*>(function));
+		}
+
 		template<class T>
 		T& defineVariable(const char* name) {
 			return defineVariable(name, T());
@@ -132,6 +137,10 @@ namespace KETL {
 
 		ketl_type_pointer i64() {
 			return ketl_state_get_type_i64(_stateImpl);
+		}
+
+		ketl_type_pointer getFunctionType(ketl_variable_features output, ketl_variable_features* parameters, uint64_t parameterCount) {
+			return ketl_state_get_type_function(_stateImpl, output, parameters, parameterCount);
 		}
 
 	private:

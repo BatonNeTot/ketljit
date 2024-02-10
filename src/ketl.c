@@ -46,39 +46,6 @@ static void deinitTypeFunctionSearchNode(TypeFunctionSearchNode* node) {
 	}
 }
 
-static ketl_type_function* getTypeFunction(ketl_state* state, ketl_int_map* typeFunctionMap, ketl_type_parameters* parameters, uint64_t lastParameter, uint64_t currentParameter) {
-	TypeFunctionSearchNode* child;
-	if (ketl_int_map_get_or_create(typeFunctionMap, (ketl_int_map_key)parameters[currentParameter].type.base, &child)) {
-		initTypeFunctionSearchNode(child);
-	}
-
-	TypeFunctionSearchNodeByTraits* byTraits = &child->byTraits[parameters[currentParameter].traits.hash];
-	if (currentParameter == lastParameter) {
-		if (byTraits->leaf != NULL) {
-			return byTraits->leaf;
-		}
-
-		ketl_type_function* function = ketl_object_pool_get(&state->typeFunctionsPool);
-		function->kind = KETL_TYPE_KIND_FUNCTION;
-		function->name = NULL; // TODO construct name
-		function->parameters = ketl_object_pool_get_array(&state->typeParametersPool, function->parameterCount = (uint32_t)(lastParameter + 1));
-		memcpy(function->parameters, parameters, sizeof(ketl_type_parameters) * function->parameterCount);
-		uint64_t offset = 0;
-		for (uint64_t i = 1u; i <= lastParameter; ++i) {
-			function->parameters[i].offset = offset;
-			offset += ketl_type_get_stack_size(function->parameters[i].type);
-		}
-		return function;
-	}
-	else {
-		if (!byTraits->initialized) {
-			byTraits->initialized = true;
-			ketl_int_map_init(&byTraits->children, sizeof(TypeFunctionSearchNode), 16);
-		}
-		return getTypeFunction(state, &byTraits->children, parameters, lastParameter, currentParameter + 1);
-	}
-}
-
 static void initNamespace(ketl_namespace* namespace) {
 	ketl_int_map_init(&namespace->types, sizeof(ketl_type_pointer), 16);
 	ketl_int_map_init(&namespace->variables, sizeof(ketl_ir_undefined_value*), 16);
@@ -344,16 +311,19 @@ ketl_state* ketl_state_create() {
 	return state;
 }
 
-static void ketlDefineVariable(ketl_state* state, const char* name, ketl_type_pointer type, ketl_variable_traits traits, void* pointer) {
-	ketl_ir_variable* variable = ketl_object_pool_get(&state->variablesPool);
-	variable->type = type;
-	variable->traits = traits;
-	variable->value.type = KETL_IR_ARGUMENT_TYPE_POINTER;
-	variable->value.stackSize = ketl_type_get_stack_size(type);
-	variable->value.pointer = pointer;
+static ketl_variable* ketlDefineVariable(ketl_state* state, const char* name, ketl_type_pointer type, ketl_variable_traits traits, void* pointer) {
+	ketl_variable* variable = malloc(sizeof(ketl_variable));
+	variable->state = state;
+
+	ketl_ir_variable* irVariable = &variable->irVariable;
+	irVariable->type = type;
+	irVariable->traits = traits;
+	irVariable->value.type = type.base->kind == KETL_TYPE_KIND_PRIMITIVE ? KETL_IR_ARGUMENT_TYPE_REFERENCE : KETL_IR_ARGUMENT_TYPE_POINTER;
+	irVariable->value.stackSize = ketl_type_get_stack_size(type);
+	irVariable->value.pointer = pointer;
 
 	ketl_ir_undefined_value* uvalue = ketl_object_pool_get(&state->undefVarPool);
-	uvalue->variable = variable;
+	uvalue->variable = irVariable;
 	uvalue->scopeIndex = 0;
 	uvalue->next = NULL;
 
@@ -362,13 +332,15 @@ static void ketlDefineVariable(ketl_state* state, const char* name, ketl_type_po
 	ketl_ir_undefined_value** ppUValue;
 	ketl_int_map_get_or_create(&state->globalNamespace.variables, (ketl_int_map_key)uniqName, &ppUValue);
 	*ppUValue = uvalue;
+
+	return variable;
 }
 
-void ketl_state_define_external_variable(ketl_state* state, const char* name, ketl_type_pointer type, void* pointer) {
+ketl_variable* ketl_state_define_external_variable(ketl_state* state, const char* name, ketl_type_pointer type, void* pointer) {
 	ketl_variable_traits traits;
 	traits.values.isConst = false;
 	traits.values.isNullable = false;
-	ketlDefineVariable(state, name, type, traits, pointer);
+	return ketlDefineVariable(state, name, type, traits, pointer);
 }
 
 void* ketl_state_define_internal_variable(ketl_state* state, const char* name, ketl_type_pointer type) {
@@ -481,9 +453,50 @@ ketl_type_pointer ketl_state_get_type_i64(ketl_state* state) {
 	return KETL_CREATE_TYPE_PTR(&state->primitives.i64_t);
 }
 
-ketl_type_pointer getFunctionType(ketl_state* state, ketl_type_parameters* parameters, uint64_t parametersCount) {
+static ketl_type_function* getTypeFunction(ketl_state* state, ketl_int_map* typeFunctionMap, ketl_variable_features* parameters, uint64_t lastParameter, uint64_t currentParameter) {
+	TypeFunctionSearchNode* child;
+	if (ketl_int_map_get_or_create(typeFunctionMap, (ketl_int_map_key)parameters[currentParameter].type.base, &child)) {
+		initTypeFunctionSearchNode(child);
+	}
+
+	TypeFunctionSearchNodeByTraits* byTraits = &child->byTraits[parameters[currentParameter].traits.hash];
+	if (currentParameter == lastParameter) {
+		if (byTraits->leaf != NULL) {
+			return byTraits->leaf;
+		}
+
+		ketl_type_function* function = ketl_object_pool_get(&state->typeFunctionsPool);
+		function->kind = KETL_TYPE_KIND_FUNCTION;
+		function->name = NULL; // TODO construct name
+		function->parameters = ketl_object_pool_get_array(&state->typeParametersPool, function->parameterCount = (uint32_t)(lastParameter + 1));
+		for (uint64_t i = 0u; i <= lastParameter; ++i) {
+			function->parameters[i].type = parameters[i].type;
+			function->parameters[i].traits = parameters[i].traits;
+		}
+		uint64_t offset = 0;
+		for (uint64_t i = 1u; i <= lastParameter; ++i) {
+			function->parameters[i].offset = offset;
+			offset += ketl_type_get_stack_size(function->parameters[i].type);
+		}
+		return function;
+	}
+	else {
+		if (!byTraits->initialized) {
+			byTraits->initialized = true;
+			ketl_int_map_init(&byTraits->children, sizeof(TypeFunctionSearchNode), 16);
+		}
+		return getTypeFunction(state, &byTraits->children, parameters, lastParameter, currentParameter + 1);
+	}
+}
+
+
+ketl_type_pointer ketl_state_get_type_function(ketl_state* state, ketl_variable_features output, ketl_variable_features* parameters, uint64_t parameterCount) {
 	ketl_type_pointer result;
-	result.function = getTypeFunction(state, &state->typeFunctionSearchMap, parameters, parametersCount - 1, 0);
+	ketl_variable_features* totalParameters = malloc(sizeof(ketl_variable_features) * (parameterCount + 1));
+	totalParameters[0] = output;
+	memcpy(totalParameters + 1, parameters, sizeof(ketl_variable_features) * parameterCount);
+	result.function = getTypeFunction(state, &state->typeFunctionSearchMap, totalParameters, parameterCount, 0);
+	free(totalParameters);
 	return result;
 }
 

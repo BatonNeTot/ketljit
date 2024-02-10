@@ -416,6 +416,9 @@ static inline uint64_t loadArgumentIntoReg(uint8_t* buffer, ketl_ir_argument* ar
 #endif
         return size;
     case KETL_IR_ARGUMENT_TYPE_POINTER: 
+        EXEC_OPCODE_REG_IMM(buffer, size, sizeMacro, KETL_OP_MOV, regMacro, (uint64_t)argument->pointer);
+        return size;
+    case KETL_IR_ARGUMENT_TYPE_REFERENCE: 
         EXEC_OPCODE_REG_IMM_MEM(buffer, size, sizeMacro, KETL_OP_MOV, regMacro, (uint64_t)argument->pointer);
         return size;
     case KETL_IR_ARGUMENT_TYPE_INT8:
@@ -445,7 +448,7 @@ static uint64_t loadRegIntoArgument(uint8_t* buffer, ketl_ir_argument* argument,
         EXEC_OPCODE_RBP_DISP_REG(buffer, size, sizeMacro, KETL_OP_MOV, (int32_t)argument->stack, regMacro);
 #endif
         return size;
-    case KETL_IR_ARGUMENT_TYPE_POINTER: 
+    case KETL_IR_ARGUMENT_TYPE_REFERENCE: 
         EXEC_OPCODE_IMM_MEM_REG(buffer, size, sizeMacro, KETL_OP_MOV, (uint64_t)argument->pointer, regMacro);
         return size;
     KETL_NODEFAULT()
@@ -707,6 +710,7 @@ const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
         }
 
         switch (itOperation[i].code) {
+        case KETL_IR_CODE_NONE: break;
         case KETL_IR_CODE_CAST_INT32_INT64: {
             length += loadArgumentIntoReg(opcodesBuffer + length, itOperation[i].arguments[1], KETL_SIZE_32B, KETL_REG_AX);
             {
@@ -860,6 +864,20 @@ const uint8_t* ketl_ir_compiler_compile(ketl_ir_compiler* irCompiler, ketl_ir_fu
                 jumpInfo.to = itOperation[i].extraNext;
                 *(JumpInfo*)ketl_stack_push(&irCompiler->jumpList) = jumpInfo;
             }
+            break;
+        }
+        case KETL_IR_CODE_CALL: {
+            // TODO load all arguments
+            length += loadArgumentIntoReg(opcodesBuffer + length, itOperation[i].arguments[1], KETL_SIZE_64B, parameterRegs[0]);
+            {
+                const uint8_t opcodesArray[] =
+                {
+                    0xff, 0x17,                              // call [parameterRegs[0]] (call [rdi] for now)
+                };
+                memcpy(opcodesBuffer + length, opcodesArray, sizeof(opcodesArray));
+                length += sizeof(opcodesArray);
+            }
+            length += loadRegIntoArgument(opcodesBuffer + length, itOperation[i].arguments[0], KETL_SIZE_64B, KETL_REG_AX);
             break;
         }
         case KETL_IR_CODE_RETURN_4_BYTES: {

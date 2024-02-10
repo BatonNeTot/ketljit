@@ -26,10 +26,15 @@ KETL_DEFINE(ketl_ir_undefined_value) {
 	ketl_ir_undefined_value* next;
 };
 
+#define KETL_IR_UNDEFINED_DELEGATE_ACTION_NONE 0
+#define KETL_IR_UNDEFINED_DELEGATE_ACTION_CALL 1
+#define KETL_IR_UNDEFINED_DELEGATE_ACTION_INDEX 2
+
 KETL_DEFINE(ketl_ir_undefined_delegate) {
 	ketl_ir_undefined_value* caller;
-	ketl_ir_undefined_value* arguments;
-	ketl_ir_undefined_value* next;
+	uint64_t action;
+	ketl_ir_undefined_delegate* arguments;
+	ketl_ir_undefined_delegate* next;
 };
 
 KETL_DEFINE(ketl_ir_return_node) {
