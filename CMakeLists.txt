@@ -2,6 +2,10 @@
 
 project ("ketljit")
 
+#set(CMAKE_C_COMPILER "clang-cl")
+#set(CMAKE_CXX_COMPILER "clang-cl")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(PROJECT_TARGET "ketljit")
 
 if(MSVC)
@@ -16,7 +20,6 @@ file(GLOB_RECURSE PROJECT_HEADERS CONFIGURE_DEPENDS include/*.h)
 
 add_library (${PROJECT_TARGET} STATIC ${PROJECT_SOURCES} ${PROJECT_HEADERS})
 set_property(TARGET ${PROJECT_TARGET} PROPERTY C_STANDARD 11)
-set(CMAKE_C_COMPILER "clang-cl")
 
 set_target_properties(${PROJECT_TARGET}
     PROPERTIES
@@ -36,7 +39,6 @@ set(PROJECT_EXE_TARGET "${PROJECT_TARGET}_exe")
 
 add_executable (${PROJECT_EXE_TARGET} "src/ketl.cpp")
 set_property(TARGET ${PROJECT_EXE_TARGET} PROPERTY CXX_STANDARD 20)
-set(CMAKE_CXX_COMPILER "clang-cl")
 
 set_property(TARGET ${PROJECT_EXE_TARGET} PROPERTY OUTPUT_NAME ketl)
 target_compile_definitions(${PROJECT_EXE_TARGET} PUBLIC KETL_LOG_BREAK_LEVEL=6)
@@ -45,6 +47,7 @@ add_dependencies(${PROJECT_EXE_TARGET} ${PROJECT_TARGET})
 
 set_target_properties(${PROJECT_EXE_TARGET}
     PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/$<CONFIG>"
     LINKER_LANGUAGE CXX
 )
 
@@ -72,6 +75,7 @@ add_subdirectory ("dependencies_tests")
 
 set_target_properties(${PROJECT_TEST_TARGET}
     PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/$<CONFIG>"
     LINKER_LANGUAGE CXX
 )
 
@@ -79,7 +83,7 @@ target_compile_definitions(${PROJECT_TEST_TARGET} PRIVATE _AMD64_)
 
 target_link_directories(${PROJECT_TEST_TARGET} PRIVATE "lib")
 target_link_libraries(${PROJECT_TEST_TARGET} ${PROJECT_TARGET} ${PROJECT_LIBRARIES} luajit)
-if (MSVC)
+if (WIN32)
     target_link_libraries(${PROJECT_TEST_TARGET} lua51)
 endif()
 target_include_directories(${PROJECT_TEST_TARGET} PUBLIC "include")

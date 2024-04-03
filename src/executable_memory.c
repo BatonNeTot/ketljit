@@ -41,7 +41,7 @@ inline static uint32_t ketl_get_page_size() {
 }
 
 inline static void* ketl_allocate_exe_memory(void* pMemHint, uint32_t size) {
-	VirtualAlloc(pMemHint, size, MEM_COMMIT, PAGE_READWRITE);
+	return VirtualAlloc(pMemHint, size, MEM_COMMIT, PAGE_READWRITE);
 }
 
 inline static void ketl_deallocate_exe_memory(void* ptr, uint32_t size) {

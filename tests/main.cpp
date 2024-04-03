@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
 	auto functionClass = &function;
 	KETL::Variable testVar = ketlState.defineFunction("testGetter", ketlState.getFunctionType(output, nullptr, 0), functionClass);
 	std::cout << testVar.call<int64_t>() << std::endl;
-	ketlState.eval("testGetter();");
+	//ketlState.eval("testGetter();");
 /*
 	int64_t& testVariable = ketlState.defineVariable("test", 4l);
 
