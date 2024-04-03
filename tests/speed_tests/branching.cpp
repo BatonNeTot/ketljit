@@ -1,4 +1,4 @@
-﻿/*🍲Ketl🍲*/
+﻿//🫖ketl
 #include "speed_tests.h"
 
 #include <iostream>

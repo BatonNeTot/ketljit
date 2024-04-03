@@ -209,7 +209,7 @@ static inline Literal parseLiteral(KETLIRFunctionWIP* wip, const char* value, si
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT32;
 		literal.value.stackSize = 4;
 	}
-	else if (INT64_MIN <= intValue && intValue <= INT64_MAX) {
+	else /* if (INT64_MIN <= intValue && intValue <= INT64_MAX) */ {
 		literal.type.primitive = &wip->builder->state->primitives.i64_t;
 		literal.value.int64 = intValue;
 		literal.value.type = KETL_IR_ARGUMENT_TYPE_INT64;

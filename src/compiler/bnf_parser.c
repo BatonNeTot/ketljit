@@ -190,7 +190,7 @@ static inline bool childRejected(ketl_bnf_parser_state* solverState) {
 #if KETL_OS_WINDOWS
 #include <windows.h>
 
-#define SET_CONSOLE_COLOR(color) SetConsoleTextAttribute(hConsole, (color)))
+#define SET_CONSOLE_COLOR(color) SetConsoleTextAttribute(hConsole, (color))
 
 #define COLOR_DEFAULT 15
 #define COLOR_RED FOREGROUND_RED
@@ -211,9 +211,7 @@ static inline bool childRejected(ketl_bnf_parser_state* solverState) {
 static void printBnfSolution(ketl_stack_iterator* iterator) {
 #if KETL_OS_WINDOWS
 	system("cls");
-
-	HANDLE  hConsole;
-	hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 #else
 	system("clear");
 #endif

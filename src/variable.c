@@ -28,15 +28,25 @@ void ketl_variable_free(ketl_variable* variable) {
 }
 
 __asm__(".globl ketl_variable_call_void\n\t"
+#if !KETL_OS_WINDOWS
         ".type ketl_variable_call_void, @function\n\t"
+#endif
         "ketl_variable_call_void:\n\t"
         ".globl ketl_variable_call_u64\n\t"
+#if !KETL_OS_WINDOWS
         ".type ketl_variable_call_u64, @function\n\t"
+#endif
         "ketl_variable_call_u64:\n\t"
         ".globl ketl_variable_call_i64\n\t"
+#if !KETL_OS_WINDOWS
         ".type ketl_variable_call_i64, @function\n\t"
+#endif
         "ketl_variable_call_i64:\n\t"
         ".cfi_startproc\n\t"
+#if !KETL_OS_WINDOWS
         "movq (%rdi), %rdi\n\t" // rdi == functionClass*
+#else
+        "movq (%rcx), %rcx\n\t" // rcx == functionClass*
+#endif
         "jmp ketl_function_call\n\t"
         ".cfi_endproc");

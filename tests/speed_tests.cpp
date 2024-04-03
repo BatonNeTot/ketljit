@@ -1,4 +1,4 @@
-﻿/*🍲Ketl🍲*/
+﻿//🫖ketl
 #include "speed_tests.h"
 
 #include <iostream>
@@ -21,8 +21,8 @@ void launchSpeedTests(uint64_t N) {
 	double averageRatio = 0;
 
 	for (const auto& [name, test] : getTests()) {
-		auto ketlTime = std::numeric_limits<double>::max();
-		auto luaTime = std::numeric_limits<double>::max();
+		auto ketlTime = (std::numeric_limits<double>::max)();
+		auto luaTime = (std::numeric_limits<double>::max)();
 		test(N, ketlTime, luaTime);
 		auto ratio = luaTime / ketlTime;
 		std::cout << name << ": Lua = " << luaTime << ", Ketl = " << ketlTime << ", ration = " << ratio << std::endl;

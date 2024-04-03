@@ -1,4 +1,4 @@
-﻿/*🍲Ketl🍲*/
+﻿//🫖ketl
 #ifndef ketl_compile_tricks_h
 #define ketl_compile_tricks_h
 
