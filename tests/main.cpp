@@ -17,6 +17,10 @@ int64_t testGetter(void*) {
 	return 42;
 }
 
+int64_t testSum(void*, int64_t a, int64_t b) {
+	return a + b;
+}
+
 int main(int argc, char** argv) {
 	(void)argc;
 	(void)argv;
@@ -55,11 +59,26 @@ int main(int argc, char** argv) {
 	ketl_variable_features output;
 	output.type = ketlState.i64();
 	output.traits.hash = 0;
-	auto function = &testGetter;
-	auto functionClass = &function;
-	KETL::Variable testVar = ketlState.defineFunction("testGetter", ketlState.getFunctionType(output, nullptr, 0), functionClass);
-	std::cout << testVar.call<int64_t>() << std::endl;
-	//ketlState.eval("testGetter();");
+	{
+		auto function = &testGetter;
+		auto functionClass = &function;
+		KETL::Variable testVar = ketlState.defineFunction("testGetter", ketlState.getFunctionType(output, nullptr, 0), functionClass);
+		std::cout << testVar.call<int64_t>() << std::endl;
+		//ketlState.eval("testGetter();");
+	}
+	{
+		auto function = &testSum;
+		auto functionClass = &function;
+
+		ketl_variable_features input[2];
+		input[0].type = ketlState.i64();
+		input[0].traits.hash = 0;
+		input[1].type = ketlState.i64();
+		input[1].traits.hash = 0;
+		KETL::Variable testVar = ketlState.defineFunction("testSum", ketlState.getFunctionType(output, input, 2), functionClass);
+		std::cout << testVar.call<int64_t>(5, 6) << std::endl;
+		//ketlState.eval("testGetter(5, 6);");
+	}
 /*
 	int64_t& testVariable = ketlState.defineVariable("test", 4l);
 

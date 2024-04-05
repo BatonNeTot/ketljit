@@ -110,6 +110,11 @@ namespace KETL {
 			return ketl_state_define_external_variable(_stateImpl, name, type, reinterpret_cast<void*>(function));
 		}
 
+		template <class R, class... Args>
+		Variable defineFunction(const char* name, ketl_type_pointer type, R(**function)(void*, Args...)) {
+			return ketl_state_define_external_variable(_stateImpl, name, type, reinterpret_cast<void*>(function));
+		}
+
 		template<class T>
 		T& defineVariable(const char* name) {
 			return defineVariable(name, T());
