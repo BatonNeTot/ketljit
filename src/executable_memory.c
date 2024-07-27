@@ -51,12 +51,12 @@ inline static void ketl_deallocate_exe_memory(void* ptr, uint32_t size) {
 
 inline static void ketl_protect_exe_memory(void* ptr, uint32_t size) {
 	DWORD dummy;
-	VirtualProtect(ptr, size, PAGE_READWRITE, &dummy);
+	VirtualProtect(ptr, size, PAGE_EXECUTE_READ, &dummy);
 }
 
 inline static void ketl_unprotect_exe_memory(void* ptr, uint32_t size) {
 	DWORD dummy;
-	VirtualProtect(ptr, size, PAGE_EXECUTE_READ, &dummy);
+	VirtualProtect(ptr, size, PAGE_READWRITE, &dummy);
 }
 
 #endif

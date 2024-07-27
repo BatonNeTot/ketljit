@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 	(void)argc;
 	(void)argv;
 
-#if 0
+#if 1
 	launchCheckTests();
 #ifdef NDEBUG
 	launchSpeedTests(10000000);
